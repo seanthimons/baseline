@@ -44,7 +44,6 @@ Every repo gets the gitleaks, commit-lint, and lint-workflows callers, plus `.gi
 - [ ] **epa-sswqs**: add the gitleaks and commit-lint callers and config files. `.gitattributes` fixes the mixed CRLF/LF in `build-toxval.yml`.
 - [ ] **serapeum**: replace `gitleaks.yml`. Add the commit-lint caller and config files. Add allowlist entries to `.gitleaks.toml` only for confirmed false positives (for example `config.yml` or test fixtures).
 - [ ] **seanthimons.github.io**: replace `gitleaks.yml`. Drop the stale `integration` branch from triggers. Add the commit-lint caller and config files. Consider allowlisting `docs/` and `_freeze/`.
-- [ ] **maestro**: add the gitleaks and commit-lint callers, `dependabot.yml` (add `npm` and `cargo` ecosystems locally), and `.gitattributes`.
 
 ## Phase 2: R check and coverage
 
@@ -75,7 +74,6 @@ Every repo gets the gitleaks, commit-lint, and lint-workflows callers, plus `.gi
 
 - [ ] **ComptoxR**: consolidate `db-dsstox.yml`, `db-toxval.yml`, and `db-ecotox-source-only.yml` into one repo-local reusable db-build workflow based on db-ecotox-source-only (`ref: main`), with 3 thin cron callers and a shared concurrency group or a pre-created `db-latest` release. Add permissions, concurrency, and timeouts to `cran-readiness.yml` and `schema-check.yml` (raise its timeout to 30-45, pass the PR body through env). Rewrite `.github/workflows/README.md` to match the remaining files.
 - [ ] **concert**: in `track-comptoxr-release.yaml`, pin checkout by SHA, add concurrency, and fix the bot email to the `41898282+` form. Copy it to chorus to replace `ComptoxR@*release`.
-- [ ] **maestro**: fix `build.yml`: `npm ci` with `cache: npm`, Node 22 or 24, rust-cache `workspaces: '. -> target'`, a fast lint/typecheck/clippy job that the build job needs, and permissions, concurrency, and timeout.
 - [ ] **epa-sswqs**: in `build-toxval.yml`, scope secrets to the steps that need them, create the new release before deleting the old one, check the parquet files exist before publishing, add timeout and concurrency, and use `r-version: renv`. Note that GitHub disables scheduled workflows after 60 days without repo activity, which affects the twice-yearly cron.
 - [ ] **bsicons**: disable Actions on the fork, or delete the upstream `R-CMD-check.yaml`. Do not migrate it.
 
@@ -89,4 +87,3 @@ Every repo gets the gitleaks, commit-lint, and lint-workflows callers, plus `.gi
 
 - Should `oldrel-1` be in the default r-cmd-check matrix? It adds one ubuntu leg per push.
 - Should Codecov be adopted beyond ComptoxR, or should repos keep step-summary-only coverage?
-- Is maestro in scope for anything beyond hygiene?

@@ -57,4 +57,4 @@ Not reusable. Runs `lint-workflows.yaml` against this repository on pushes to `m
 ## Not here
 
 - The shinylive Pages deploy is a copied example in `examples/shinylive-pages.yaml`, because it already wraps `posit-dev/r-shinylive`'s reusable workflow.
-- Project-specific workflows (ComptoxR db builds, schema-check, cassette recording, maestro's Tauri build, epa-sswqs data release) stay in their own repos. They may use the composite actions in `.github/actions/r-setup` and `.github/actions/pkg-metadata`, pinned by SHA.
+- Project-specific workflows (ComptoxR db builds, schema-check, cassette recording, epa-sswqs data release) stay in their own repos. They may use the composite actions in `.github/actions/r-setup` and `.github/actions/pkg-metadata`, pinned by SHA.

@@ -69,7 +69,7 @@ The composite actions are for project-specific workflows in caller repos (for ex
 | `quarto-pages.yaml` | | | yes | | |
 | `examples/shinylive-pages.yaml` | | | | copy and edit | |
 
-Node and Rust builds (maestro) stay project-specific. baseline ships no Node or Rust workflows or composites; those repos take only the hygiene callers.
+Node and Rust builds stay project-specific. baseline ships no Node or Rust workflows or composites; those repos take only the hygiene callers.
 
 Config files:
 
