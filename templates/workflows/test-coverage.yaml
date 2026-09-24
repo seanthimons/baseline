@@ -21,7 +21,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: seanthimons/baseline/.github/workflows/test-coverage.yaml@<sha> # v1.0.0
+    uses: seanthimons/baseline/.github/workflows/test-coverage.yaml@0a2a80a6d045ffbdacedd59e35dce1497e2acfc1 # v1.0.0
     with:
       codecov: false
       quarto: false

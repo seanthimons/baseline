@@ -16,7 +16,7 @@ jobs:
     name: Rolling prerelease
     permissions:
       contents: write
-    uses: seanthimons/baseline/.github/workflows/rolling-prerelease.yaml@<sha> # v1.0.0
+    uses: seanthimons/baseline/.github/workflows/rolling-prerelease.yaml@0a2a80a6d045ffbdacedd59e35dce1497e2acfc1 # v1.0.0
     with:
       ref: integration
       tag: integration-latest

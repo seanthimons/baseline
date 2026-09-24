@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     name: Build package
-    uses: seanthimons/baseline/.github/workflows/build-package.yaml@<sha> # v1.0.0
+    uses: seanthimons/baseline/.github/workflows/build-package.yaml@0a2a80a6d045ffbdacedd59e35dce1497e2acfc1 # v1.0.0
     with:
       quarto: false
       pre-build-script: ''
