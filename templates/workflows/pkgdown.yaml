@@ -1,0 +1,31 @@
+# Copy to .github/workflows/pkgdown.yaml. Builds the pkgdown site on every push/PR
+# and deploys to GitHub Pages on non-PR events via the baseline reusable workflow.
+# One-time setup: Settings > Pages > Build and deployment > Source must be "GitHub Actions".
+name: pkgdown
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  pkgdown:
+    name: pkgdown
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: seanthimons/baseline/.github/workflows/pkgdown.yaml@<sha> # v1.0.0
+    # with:
+    #   quarto: true
+    #   pre-build-script: dev/pre_build.R

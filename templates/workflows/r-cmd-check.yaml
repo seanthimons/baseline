@@ -1,0 +1,20 @@
+name: R-CMD-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: r-cmd-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  r-cmd-check:
+    name: R CMD check
+    # Pin: replace <sha> with the full commit SHA of the baseline v1.0.0 tag.
+    uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@<sha> # v1.0.0

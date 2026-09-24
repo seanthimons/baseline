@@ -1,0 +1,104 @@
+# Reusable: run testthat for R apps (non-packages) against the renv.lock environment.
+# Optional air format check and Shiny startup smoke test.
+# Caller permissions: contents: read. Secrets: none.
+# Example caller: templates/workflows/r-renv-tests.yaml
+name: R renv tests
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        type: string
+        default: ubuntu-latest
+      test-dir:
+        type: string
+        default: tests/testthat
+      test-filter:
+        type: string
+        default: ''
+      air-format-check:
+        type: boolean
+        default: false
+      shiny-smoke:
+        type: boolean
+        default: false
+      shiny-run-command:
+        type: string
+        default: 'shiny::runApp(port=3838, launch.browser=FALSE)'
+
+permissions:
+  contents: read
+
+jobs:
+  renv-tests:
+    name: renv tests (${{ inputs.os }})
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 45
+    env:
+      GITHUB_PAT: ${{ github.token }}
+      R_PROFILE_USER: /dev/null
+      RENV_CONFIG_AUTOLOADER_ENABLED: 'false'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up air
+        if: inputs.air-format-check
+        uses: posit-dev/setup-air@cf390573ff4fe0f198f35df3a642b1409328d859 # v1
+
+      - name: Check air formatting
+        if: inputs.air-format-check
+        shell: bash
+        run: air format --check .
+
+      - name: Set up pandoc
+        uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Set up R from renv.lock
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          r-version: renv
+          use-public-rspm: true
+
+      - name: Restore renv environment
+        uses: r-lib/actions/setup-renv@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      # Autoloader is disabled at job level, so each R step loads the project library explicitly.
+      - name: Run tests
+        env:
+          TEST_DIR: ${{ inputs.test-dir }}
+          TEST_FILTER: ${{ inputs.test-filter }}
+        shell: Rscript {0}
+        run: |
+          renv::load()
+          filter <- Sys.getenv("TEST_FILTER")
+          testthat::test_dir(
+            Sys.getenv("TEST_DIR"),
+            filter = if (nzchar(filter)) filter else NULL,
+            stop_on_failure = TRUE
+          )
+
+      - name: Shiny startup smoke test
+        if: inputs.shiny-smoke
+        env:
+          SHINY_RUN_COMMAND: ${{ inputs.shiny-run-command }}
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/shiny-smoke.log"
+          Rscript -e 'renv::load()' -e "$SHINY_RUN_COMMAND" > "$log" 2>&1 &
+          pid=$!
+          for _ in $(seq 1 120); do
+            if grep -q 'Listening on' "$log"; then
+              echo "App started."
+              kill "$pid" 2>/dev/null || true
+              exit 0
+            fi
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 1
+          done
+          echo "::error::App did not print 'Listening on' within 120s."
+          cat "$log"
+          kill "$pid" 2>/dev/null || true
+          exit 1

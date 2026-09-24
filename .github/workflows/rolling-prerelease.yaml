@@ -1,0 +1,254 @@
+# Reusable workflow: build an R package from a ref and publish it to a moving
+# prerelease tag. The tag moves only after every asset has uploaded.
+# Caller permissions: contents: write on the calling job.
+# Secrets: none (uses the caller's GITHUB_TOKEN).
+# Example caller: templates/workflows/rolling-prerelease.yaml
+name: Rolling prerelease
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Branch, tag, or SHA to build.
+        type: string
+        default: main
+      tag:
+        description: Rolling prerelease tag to publish to.
+        type: string
+        default: package-latest
+      build-binaries:
+        description: Also build Windows and macOS binary packages.
+        type: boolean
+        default: false
+      require-dev-version:
+        description: Fail unless the DESCRIPTION version has 4 components.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rolling-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    name: Read package metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      package: ${{ steps.metadata.outputs.package }}
+      version: ${{ steps.metadata.outputs.version }}
+      sha: ${{ steps.metadata.outputs.sha }}
+      short_sha: ${{ steps.metadata.outputs.short_sha }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Read DESCRIPTION
+        id: metadata
+        shell: bash
+        env:
+          REQUIRE_DEV_VERSION: ${{ inputs.require-dev-version }}
+        run: |
+          package="$(awk -F': *' '/^Package:/ {print $2; exit}' DESCRIPTION)"
+          version="$(awk -F': *' '/^Version:/ {print $2; exit}' DESCRIPTION)"
+          if [ -z "$package" ] || [ -z "$version" ]; then
+            echo "::error::Could not read Package and Version from DESCRIPTION."
+            exit 1
+          fi
+          if [ "$REQUIRE_DEV_VERSION" = "true" ] && ! [[ "$version" =~ ^[0-9]+([.-][0-9]+){3}$ ]]; then
+            echo "::error::Rolling builds need a 4-component dev version, e.g. 1.6.0.9000. Found: $version"
+            exit 1
+          fi
+          {
+            echo "package=$package"
+            echo "version=$version"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "short_sha=$(git rev-parse --short=7 HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+  build-source:
+    name: Build source package
+    needs: metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GITHUB_PAT: ${{ github.token }}
+      R_PROFILE_USER: /dev/null
+      RENV_CONFIG_AUTOLOADER_ENABLED: false
+      PACKAGE: ${{ needs.metadata.outputs.package }}
+      VERSION: ${{ needs.metadata.outputs.version }}
+      SHORT_SHA: ${{ needs.metadata.outputs.short_sha }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.metadata.outputs.sha }}
+          persist-credentials: false
+
+      - name: Set up pandoc
+        uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: true
+
+      - name: Install package dependencies
+        uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Build source tarball
+        shell: bash
+        run: |
+          R CMD build .
+          mkdir -p dist
+          mv "${PACKAGE}_${VERSION}.tar.gz" "dist/${PACKAGE}_${VERSION}_${SHORT_SHA}_source.tar.gz"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rolling-source
+          path: dist/
+          retention-days: 1
+          if-no-files-found: error
+
+  build-binaries:
+    name: Build ${{ matrix.label }} binary
+    needs: metadata
+    if: ${{ inputs.build-binaries }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: windows
+            ext: zip
+          - os: macos-latest
+            label: macos
+            ext: tgz
+    env:
+      GITHUB_PAT: ${{ github.token }}
+      R_PROFILE_USER: /dev/null
+      RENV_CONFIG_AUTOLOADER_ENABLED: false
+      PACKAGE: ${{ needs.metadata.outputs.package }}
+      VERSION: ${{ needs.metadata.outputs.version }}
+      SHORT_SHA: ${{ needs.metadata.outputs.short_sha }}
+      LABEL: ${{ matrix.label }}
+      EXT: ${{ matrix.ext }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.metadata.outputs.sha }}
+          persist-credentials: false
+
+      - name: Set up pandoc
+        uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: true
+
+      - name: Install package dependencies
+        uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Build binary package
+        shell: bash
+        run: |
+          R CMD build .
+          R CMD INSTALL --build "${PACKAGE}_${VERSION}.tar.gz"
+          mkdir -p dist
+          mv "${PACKAGE}_${VERSION}.${EXT}" "dist/${PACKAGE}_${VERSION}_${SHORT_SHA}_${LABEL}.${EXT}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rolling-${{ matrix.label }}
+          path: dist/
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: Publish rolling prerelease
+    needs: [metadata, build-source, build-binaries]
+    # build-binaries is skipped when disabled; publish still runs in that case.
+    if: ${{ always() && needs.build-source.result == 'success' && (needs.build-binaries.result == 'success' || needs.build-binaries.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+      SHA: ${{ needs.metadata.outputs.sha }}
+      PACKAGE: ${{ needs.metadata.outputs.package }}
+      VERSION: ${{ needs.metadata.outputs.version }}
+      SHORT_SHA: ${{ needs.metadata.outputs.short_sha }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.metadata.outputs.sha }}
+          # Credentials are needed to push the rolling tag below.
+          persist-credentials: true
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: rolling-*
+          path: dist
+          merge-multiple: true
+
+      - name: Ensure prerelease exists
+        shell: bash
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            is_prerelease="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq '.isPrerelease')"
+            if [ "$is_prerelease" != "true" ]; then
+              echo "::error::Release $TAG exists but is not a prerelease."
+              exit 1
+            fi
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$SHA" \
+              --title "$PACKAGE rolling build" \
+              --notes "Preparing rolling prerelease for $PACKAGE $VERSION." \
+              --prerelease
+          fi
+
+      - name: Upload assets
+        shell: bash
+        run: gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Move rolling tag
+        shell: bash
+        run: git push --force origin "$SHA:refs/tags/$TAG"
+
+      - name: Delete stale assets
+        shell: bash
+        run: |
+          current="${PACKAGE}_${VERSION}_${SHORT_SHA}_"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' |
+            while IFS= read -r asset; do
+              if [[ "$asset" == "${PACKAGE}_"* && "$asset" != "$current"* ]]; then
+                gh release delete-asset "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" --yes
+              fi
+            done
+
+      - name: Update release notes
+        shell: bash
+        run: |
+          gh release edit "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$PACKAGE rolling build" \
+            --notes "Rolling prerelease of $PACKAGE $VERSION built from commit $SHA." \
+            --prerelease

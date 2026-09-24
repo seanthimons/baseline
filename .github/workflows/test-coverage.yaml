@@ -1,0 +1,96 @@
+# Reusable R package test coverage: covr once, cobertura.xml artifact, step summary table.
+# Caller permissions: contents: read, id-token: write (the job declares id-token: write,
+# so callers must grant it even when codecov is false).
+# Secrets: none (Codecov upload uses OIDC).
+# Example caller: templates/workflows/test-coverage.yaml
+name: Test coverage
+
+on:
+  workflow_call:
+    inputs:
+      codecov:
+        description: Upload cobertura.xml to Codecov via OIDC
+        type: boolean
+        default: false
+      quarto:
+        description: Install Quarto before installing dependencies
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GITHUB_PAT: ${{ github.token }}
+      R_KEEP_PKG_SOURCE: yes
+      R_PROFILE_USER: /dev/null
+      RENV_CONFIG_AUTOLOADER_ENABLED: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pandoc
+        uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Set up Quarto
+        if: inputs.quarto
+        uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+
+      - name: Install package dependencies
+        uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          extra-packages: |
+            any::covr
+            any::xml2
+          needs: coverage
+
+      - name: Calculate coverage
+        shell: Rscript {0}
+        run: |
+          cov <- covr::package_coverage()
+          print(cov)
+          covr::to_cobertura(cov, "cobertura.xml")
+          files <- covr::coverage_to_list(cov)$filecoverage
+          summary <- c(
+            "## Test coverage",
+            "",
+            sprintf("Total: %.2f%%", covr::percent_coverage(cov)),
+            "",
+            "| File | Coverage |",
+            "| --- | ---: |",
+            sprintf("| `%s` | %.2f%% |", names(files), files)
+          )
+          cat(summary, sep = "\n", file = Sys.getenv("GITHUB_STEP_SUMMARY"), append = TRUE)
+
+      - name: Upload coverage to Codecov
+        if: inputs.codecov
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          use_oidc: true
+          files: cobertura.xml
+          fail_ci_if_error: true
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-coverage
+          path: cobertura.xml
+          if-no-files-found: error
+          retention-days: 14

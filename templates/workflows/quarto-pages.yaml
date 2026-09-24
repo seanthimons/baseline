@@ -1,0 +1,27 @@
+# Caller for seanthimons/baseline quarto-pages: render on PRs, deploy on push/dispatch.
+# Copy to .github/workflows/quarto-pages.yaml.
+# Repo Settings > Pages > Build and deployment > Source must be "GitHub Actions".
+# Secrets: none.
+name: Quarto Pages
+
+on:
+  push:
+    branches: [main] # set to your default branch
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quarto-pages:
+    name: Quarto Pages
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: seanthimons/baseline/.github/workflows/quarto-pages.yaml@<sha> # v1.0.0
+    with:
+      quarto-version: 1.7.32
+      # output-dir: _site
+      # needs-r: false

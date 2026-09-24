@@ -1,0 +1,34 @@
+# Caller for baseline's reusable R package release. Copy to .github/workflows/.
+# Needs repo secret RELEASE_PAT: fine-grained PAT, Contents read/write on this
+# repo, owned by someone allowed to push to protected main.
+# The calling job grants contents: write so the callee's publish job can use it.
+# No concurrency here: the callee owns the "release" group (same name here would deadlock).
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version-type:
+        description: Version component to bump
+        type: choice
+        options: [patch, minor, major, dev]
+        default: patch
+      dry-run:
+        description: Build and check only; do not push or publish
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release
+    permissions:
+      contents: write
+    uses: seanthimons/baseline/.github/workflows/release-r-package.yaml@<sha> # v1.0.0
+    with:
+      version-type: ${{ inputs.version-type }}
+      dry-run: ${{ inputs.dry-run }}
+    secrets:
+      RELEASE_PAT: ${{ secrets.RELEASE_PAT }}

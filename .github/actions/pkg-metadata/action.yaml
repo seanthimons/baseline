@@ -1,0 +1,32 @@
+# Read Package and Version from DESCRIPTION and the short commit SHA.
+# Requires R on the runner (run r-setup or setup-r first) and a checked-out repo.
+name: Package metadata
+description: Output package name, version, and short SHA from DESCRIPTION.
+
+outputs:
+  package:
+    description: Package field from DESCRIPTION.
+    value: ${{ steps.meta.outputs.package }}
+  version:
+    description: Version field from DESCRIPTION.
+    value: ${{ steps.meta.outputs.version }}
+  sha:
+    description: First 7 characters of GITHUB_SHA.
+    value: ${{ steps.meta.outputs.sha }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read DESCRIPTION
+      id: meta
+      shell: Rscript {0}
+      run: |
+        d <- read.dcf("DESCRIPTION", fields = c("Package", "Version"))
+        cat(
+          sprintf("package=%s\n", d[1, "Package"]),
+          sprintf("version=%s\n", d[1, "Version"]),
+          sprintf("sha=%s\n", substr(Sys.getenv("GITHUB_SHA"), 1, 7)),
+          file = Sys.getenv("GITHUB_OUTPUT"),
+          append = TRUE,
+          sep = ""
+        )

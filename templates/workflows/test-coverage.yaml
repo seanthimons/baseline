@@ -1,0 +1,27 @@
+# Caller for the baseline test coverage workflow. Copy to .github/workflows/.
+name: Test coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Coverage
+    permissions:
+      contents: read
+      id-token: write
+    uses: seanthimons/baseline/.github/workflows/test-coverage.yaml@<sha> # v1.0.0
+    with:
+      codecov: false
+      quarto: false

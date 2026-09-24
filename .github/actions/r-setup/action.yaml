@@ -1,0 +1,59 @@
+# Composite R setup: pandoc, R (public RSPM), optional Quarto/Air, then renv or pak deps.
+# Callers must run actions/checkout first. Composite actions cannot set job env,
+# so set these at the job level in the calling workflow:
+#   env:
+#     R_PROFILE_USER: /dev/null
+#     RENV_CONFIG_AUTOLOADER_ENABLED: 'false'
+name: R setup
+description: Install pandoc, R, optional Quarto/Air, and package dependencies.
+
+inputs:
+  r-version:
+    description: R version passed to setup-r.
+    default: release
+  use-renv:
+    description: "'true' restores renv.lock via setup-renv instead of setup-r-dependencies."
+    default: "false"
+  quarto:
+    description: "'true' installs Quarto."
+    default: "false"
+  air:
+    description: "'true' installs the Air formatter."
+    default: "false"
+  extra-packages:
+    description: Extra packages for setup-r-dependencies.
+    default: any::rcmdcheck
+  needs:
+    description: Config/Needs field set for setup-r-dependencies.
+    default: check
+
+runs:
+  using: composite
+  steps:
+    - name: Set up pandoc
+      uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+    - name: Set up R
+      uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+      with:
+        r-version: ${{ inputs.r-version }}
+        use-public-rspm: true
+
+    - name: Set up Quarto
+      if: inputs.quarto == 'true'
+      uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+
+    - name: Set up Air
+      if: inputs.air == 'true'
+      uses: posit-dev/setup-air@cf390573ff4fe0f198f35df3a642b1409328d859 # v1
+
+    - name: Restore renv library
+      if: inputs.use-renv == 'true'
+      uses: r-lib/actions/setup-renv@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+    - name: Install R dependencies
+      if: inputs.use-renv != 'true'
+      uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+      with:
+        extra-packages: ${{ inputs.extra-packages }}
+        needs: ${{ inputs.needs }}

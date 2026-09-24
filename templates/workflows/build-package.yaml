@@ -1,0 +1,17 @@
+# Caller stub: build the R source package on demand via the baseline reusable workflow.
+# Copy to .github/workflows/build-package.yaml in your repo.
+name: Build package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build package
+    uses: seanthimons/baseline/.github/workflows/build-package.yaml@<sha> # v1.0.0
+    with:
+      quarto: false
+      pre-build-script: ''

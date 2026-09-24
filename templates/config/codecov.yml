@@ -1,0 +1,29 @@
+# https://docs.codecov.com/docs/codecov-yaml
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...90"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 0%
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+
+ignore:
+  - "tests/**"
+  - "data-raw/**"
+  - "inst/**"
+  - "man/**"
+  - "vignettes/**"

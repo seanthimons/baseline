@@ -1,0 +1,24 @@
+# Caller stub: publish a rolling prerelease from the integration branch via the baseline reusable workflow.
+# Copy to .github/workflows/rolling-prerelease.yaml in your repo and adjust the inputs.
+# The calling job needs contents: write to publish the release and move the tag.
+name: Rolling prerelease
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [integration]
+
+permissions:
+  contents: read
+
+jobs:
+  rolling:
+    name: Rolling prerelease
+    permissions:
+      contents: write
+    uses: seanthimons/baseline/.github/workflows/rolling-prerelease.yaml@<sha> # v1.0.0
+    with:
+      ref: integration
+      tag: integration-latest
+      build-binaries: true
+      require-dev-version: true

@@ -1,0 +1,22 @@
+# Lint baseline's own workflows using the local reusable workflow.
+name: Self lint
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/**']
+  pull_request:
+    paths: ['.github/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint workflows
+    uses: ./.github/workflows/lint-workflows.yaml

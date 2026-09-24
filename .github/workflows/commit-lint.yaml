@@ -1,0 +1,81 @@
+# Reusable workflow: lint PR commit subjects and PR title (Conventional Commits)
+# and the head branch name (Conventional Branch, no agent/model tokens).
+# Caller permissions: contents: read. Secrets: none.
+# Trigger from pull_request only. Example caller: templates/workflows/commit-lint.yaml
+name: Commit Lint
+
+on:
+  workflow_call:
+    inputs:
+      types:
+        description: Allowed commit types, pipe-separated
+        type: string
+        default: 'feat|fix|refactor|perf|build|test|ci|docs|style|chore'
+      scope-regex:
+        description: Regex for the optional scope, without parentheses
+        type: string
+        default: '[A-Za-z0-9_]+'
+
+permissions:
+  contents: read
+
+jobs:
+  commit-lint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Lint commit subjects, PR title, and branch name
+        shell: bash
+        env:
+          TYPES: ${{ inputs.types }}
+          SCOPE_REGEX: ${{ inputs.scope-regex }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          subject_re="^(${TYPES})(\((${SCOPE_REGEX})\))?!?: .+"
+          branch_re='^(feature|feat|bugfix|fix|hotfix|release|chore)/[a-z0-9._-]+$'
+          trunk_re='^(main|master|develop)$'
+          agent_re='(^|[/._-])(codex|claude|copilot|cursor|chatgpt|gpt|openai|anthropic|gemini|llama|mistral|grok|qwen|deepseek|llm|ai)([/._-]|$)'
+          is_bot() { [ "$1" = 'github-actions[bot]' ] || [ "$1" = 'dependabot[bot]' ]; }
+          bad=()
+
+          while IFS=$'\t' read -r sha author subject; do
+            is_bot "$author" && continue
+            grep -qE "$subject_re" <<<"$subject" || bad+=("commit ${sha:0:8}: ${subject}")
+          done < <(git log --no-merges --format='%H%x09%an%x09%s' "${BASE_SHA}..${HEAD_SHA}")
+
+          grep -qE "$subject_re" <<<"$PR_TITLE" || bad+=("PR title: ${PR_TITLE}")
+
+          # Bot PRs (e.g. dependabot/github_actions/...) use their own branch scheme.
+          if ! is_bot "$PR_AUTHOR"; then
+            if [[ ! "$GITHUB_HEAD_REF" =~ $trunk_re && ! "$GITHUB_HEAD_REF" =~ $branch_re ]]; then
+              bad+=("branch name: ${GITHUB_HEAD_REF}")
+            fi
+            if [[ "${GITHUB_HEAD_REF,,}" =~ $agent_re ]]; then
+              bad+=("branch name contains agent/model token '${BASH_REMATCH[2]}': ${GITHUB_HEAD_REF}")
+            fi
+          fi
+
+          if [ "${#bad[@]}" -gt 0 ]; then
+            echo "Conventional Commits / Conventional Branch violations:"
+            for item in "${bad[@]}"; do
+              echo "::error::${item}"
+            done
+            echo
+            echo "Commit subjects and PR title: <type>[(scope)][!]: <description>"
+            echo "  type:  ${TYPES}"
+            echo "  scope: ${SCOPE_REGEX}"
+            echo "Branch: main|master|develop, or <feature|feat|bugfix|fix|hotfix|release|chore>/<lowercase-words>"
+            echo "  and no agent/model names (codex, claude, gpt, ai, ...) as words."
+            exit 1
+          fi
+          echo "All commit subjects, PR title, and branch name pass."

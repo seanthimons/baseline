@@ -1,0 +1,90 @@
+# Reusable workflow: build a pkgdown site and deploy it to GitHub Pages (Pages artifact).
+# Deploy is skipped for pull_request events; the build still runs as a check.
+# Caller permissions: contents: read, pages: write, id-token: write. Secrets: none.
+# Example caller: templates/workflows/pkgdown.yaml
+name: pkgdown
+
+on:
+  workflow_call:
+    inputs:
+      quarto:
+        description: Install Quarto before building the site.
+        type: boolean
+        default: false
+      pre-build-script:
+        description: Path to an R script run with Rscript before the build. Empty skips it.
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      GITHUB_PAT: ${{ github.token }}
+      R_PROFILE_USER: /dev/null
+      RENV_CONFIG_AUTOLOADER_ENABLED: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pandoc
+        uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: true
+
+      - name: Set up Quarto
+        if: inputs.quarto
+        uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+
+      - name: Install package dependencies
+        uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          extra-packages: any::pkgdown, local::.
+          needs: website
+
+      - name: Run pre-build script
+        if: inputs.pre-build-script != ''
+        env:
+          PRE_BUILD_SCRIPT: ${{ inputs.pre-build-script }}
+        run: Rscript "$PRE_BUILD_SCRIPT"
+
+      - name: Build site
+        run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
+        shell: Rscript {0}
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

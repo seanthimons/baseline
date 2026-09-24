@@ -1,0 +1,26 @@
+# Caller for baseline's reusable R renv tests workflow (R apps with renv.lock, not packages).
+# Copy to .github/workflows/r-renv-tests.yaml in the consuming repo.
+name: R renv tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r-renv-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  renv-tests:
+    name: renv tests
+    uses: seanthimons/baseline/.github/workflows/r-renv-tests.yaml@<sha> # v1.0.0
+    # with:
+    #   test-filter: 'review|modules-render'
+    #   air-format-check: true
+    #   shiny-smoke: true
+    #   shiny-run-command: 'shiny::runApp("inst/app", port=3838, launch.browser=FALSE)'

@@ -1,0 +1,100 @@
+# Reusable workflow: build an R source package tarball and upload it as an artifact.
+# Caller permissions: contents: read.
+# Secrets: none (uses the caller's GITHUB_TOKEN for package installs).
+# Example caller: templates/workflows/build-package.yaml
+name: Build package
+
+on:
+  workflow_call:
+    inputs:
+      quarto:
+        description: Install Quarto (needed for Quarto vignettes).
+        type: boolean
+        default: false
+      pre-build-script:
+        description: Path to an R script run with Rscript before R CMD build. Empty to skip.
+        type: string
+        default: ''
+    outputs:
+      artifact-name:
+        description: Name of the uploaded source tarball artifact.
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build source package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      artifact-name: ${{ steps.metadata.outputs.artifact }}
+    env:
+      GITHUB_PAT: ${{ github.token }}
+      R_PROFILE_USER: /dev/null
+      RENV_CONFIG_AUTOLOADER_ENABLED: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pandoc
+        uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: true
+
+      - name: Set up Quarto
+        if: inputs.quarto
+        uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+
+      - name: Install package dependencies
+        uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          extra-packages: any::desc
+
+      - name: Read package metadata
+        id: metadata
+        shell: Rscript {0}
+        run: |
+          meta <- desc::desc_get(c("Package", "Version"))
+          write(
+            c(
+              sprintf("package=%s", meta[["Package"]]),
+              sprintf("version=%s", meta[["Version"]]),
+              sprintf("artifact=%s-%s-source", meta[["Package"]], meta[["Version"]])
+            ),
+            file = Sys.getenv("GITHUB_OUTPUT"),
+            append = TRUE
+          )
+
+      - name: Run pre-build script
+        if: inputs.pre-build-script != ''
+        env:
+          PRE_BUILD_SCRIPT: ${{ inputs.pre-build-script }}
+        shell: bash
+        run: Rscript "$PRE_BUILD_SCRIPT"
+
+      - name: Build source package
+        id: build
+        env:
+          PACKAGE: ${{ steps.metadata.outputs.package }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          R CMD build .
+          tarball="${PACKAGE}_${VERSION}.tar.gz"
+          test -f "$tarball"
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+
+      - name: Upload source package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.metadata.outputs.artifact }}
+          path: ${{ steps.build.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 14

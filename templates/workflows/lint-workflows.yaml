@@ -1,0 +1,20 @@
+# Copy to .github/workflows/lint-workflows.yaml in your repo.
+name: Lint workflows
+
+on:
+  push:
+    paths: ['.github/**']
+  pull_request:
+    paths: ['.github/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-workflows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint workflows
+    uses: seanthimons/baseline/.github/workflows/lint-workflows.yaml@<sha> # v1.0.0

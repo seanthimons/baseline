@@ -1,0 +1,90 @@
+# Reusable R CMD check across an OS/R matrix; uploads testthat snapshots.
+# Caller permissions: contents: read. Secrets: none.
+# Example caller: templates/workflows/r-cmd-check.yaml
+name: R-CMD-check
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        description: JSON array of {os, r} objects.
+        type: string
+        default: '[{"os":"ubuntu-latest","r":"release"},{"os":"windows-latest","r":"release"},{"os":"macos-latest","r":"release"}]'
+      quarto:
+        description: Install Quarto.
+        type: boolean
+        default: false
+      setup-air:
+        description: Install the air formatter.
+        type: boolean
+        default: false
+      extra-packages:
+        description: Extra packages for setup-r-dependencies.
+        type: string
+        default: any::rcmdcheck
+      error-on:
+        description: rcmdcheck error_on level (error, warning, note).
+        type: string
+        default: warning
+      testthat-parallel-windows:
+        description: Allow parallel testthat on Windows.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  r-cmd-check:
+    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+    runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJSON(inputs.matrix) }}
+
+    env:
+      GITHUB_PAT: ${{ github.token }}
+      R_KEEP_PKG_SOURCE: yes
+      R_PROFILE_USER: /dev/null
+      RENV_CONFIG_AUTOLOADER_ENABLED: false
+      # Empty string defers to the package's Config/testthat/parallel.
+      TESTTHAT_PARALLEL: ${{ (startsWith(matrix.config.os, 'windows') && !inputs.testthat-parallel-windows) && 'FALSE' || '' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pandoc
+        uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          r-version: ${{ matrix.config.r }}
+          use-public-rspm: true
+
+      - name: Set up Quarto
+        if: inputs.quarto
+        uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+
+      - name: Set up air
+        if: inputs.setup-air
+        uses: posit-dev/setup-air@cf390573ff4fe0f198f35df3a642b1409328d859 # v1
+
+      - name: Install package dependencies
+        uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          extra-packages: ${{ inputs.extra-packages }}
+          needs: check
+
+      - name: Check package
+        uses: r-lib/actions/check-r-package@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          # check-r-package evaluates error-on as an R expression, so quote it.
+          error-on: '"${{ inputs.error-on }}"'
+          upload-snapshots: true

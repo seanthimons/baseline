@@ -1,0 +1,254 @@
+# Reusable release for R packages: bump version, commit + tag, build the source
+# tarball once, R CMD check that exact tarball, push, then publish a GitHub release.
+# Caller permissions: contents: write on the calling job (publish job needs it).
+# Secret RELEASE_PAT: fine-grained PAT, Contents read/write on this repo, owned by
+# someone allowed to push to protected main (used for checkout and the push).
+# Example caller: templates/workflows/release-r-package.yaml
+name: Release R package
+
+on:
+  workflow_call:
+    inputs:
+      version-type:
+        description: "Version bump passed to usethis::use_version(): major, minor, patch, or dev"
+        type: string
+        default: patch
+      notes-mode:
+        description: "Release notes source: autonewsmd (NEWS.md section) or generate-notes (GitHub generated)"
+        type: string
+        default: autonewsmd
+      news-postprocess-script:
+        description: "Optional R script (repo-relative path) run with Rscript after autonewsmd writes NEWS.md"
+        type: string
+        default: ""
+      pre-release-check-script:
+        description: "Optional R script (repo-relative path) run with Rscript after the version bump"
+        type: string
+        default: ""
+      quarto:
+        description: "Install Quarto (always installed when notes-mode is autonewsmd)"
+        type: boolean
+        default: false
+      dry-run:
+        description: "Run everything except push and publish; allowed on any ref"
+        type: boolean
+        default: false
+    secrets:
+      RELEASE_PAT:
+        required: true
+
+permissions:
+  contents: read
+
+# Real releases serialize and never cancel; dry runs get their own group so a
+# queued release is never displaced by a pending PR dry run.
+concurrency:
+  group: ${{ inputs.dry-run && format('release-dry-run-{0}', github.run_id) || 'release' }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Build and check
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      package: ${{ steps.metadata.outputs.package }}
+      version: ${{ steps.metadata.outputs.version }}
+    env:
+      R_PROFILE_USER: /dev/null
+      RENV_CONFIG_AUTOLOADER_ENABLED: "false"
+      GITHUB_PAT: ${{ github.token }}
+      VERSION_TYPE: ${{ inputs.version-type }}
+      NOTES_MODE: ${{ inputs.notes-mode }}
+      NEWS_POSTPROCESS_SCRIPT: ${{ inputs.news-postprocess-script }}
+      PRE_RELEASE_CHECK_SCRIPT: ${{ inputs.pre-release-check-script }}
+      DRY_RUN: ${{ inputs.dry-run }}
+    steps:
+      - name: Validate inputs and ref
+        run: |
+          case "$VERSION_TYPE" in
+            major|minor|patch|dev) ;;
+            *) echo "::error::version-type must be one of major, minor, patch, dev"; exit 1 ;;
+          esac
+          case "$NOTES_MODE" in
+            autonewsmd|generate-notes) ;;
+            *) echo "::error::notes-mode must be autonewsmd or generate-notes"; exit 1 ;;
+          esac
+          if [ "$DRY_RUN" != "true" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Releases run only from refs/heads/main (use dry-run elsewhere)"
+            exit 1
+          fi
+
+      # Credentials persist on purpose: the final push uses RELEASE_PAT.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Set up pandoc
+        uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: true
+
+      # autonewsmd renders NEWS.md through Quarto.
+      - name: Set up Quarto
+        if: inputs.quarto || inputs.notes-mode == 'autonewsmd'
+        uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+
+      - name: Install package dependencies
+        uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          needs: check
+          extra-packages: |
+            any::usethis
+            any::rcmdcheck
+            ${{ inputs.notes-mode == 'autonewsmd' && 'any::autonewsmd' || '' }}
+
+      - name: Bump version
+        shell: Rscript {0}
+        run: usethis::use_version(Sys.getenv("VERSION_TYPE"))
+
+      - name: Read package metadata
+        id: metadata
+        shell: Rscript {0}
+        run: |
+          d <- read.dcf("DESCRIPTION", fields = c("Package", "Version"))[1L, ]
+          stopifnot(grepl("^[0-9]+([.-][0-9]+)+$", d[["Version"]]))
+          keys <- c("package", "version")
+          vals <- d[c("Package", "Version")]
+          out <- sprintf("%s=%s", keys, vals)
+          env <- sprintf("%s=%s", toupper(keys), vals)
+          cat(out, file = Sys.getenv("GITHUB_OUTPUT"), sep = "\n", append = TRUE)
+          cat(env, file = Sys.getenv("GITHUB_ENV"), sep = "\n", append = TRUE)
+
+      - name: Refuse an existing tag
+        run: |
+          rc=0
+          git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null || rc=$?
+          case "$rc" in
+            0) echo "::error::Tag v${VERSION} already exists on origin"; exit 1 ;;
+            2) ;;
+            *) echo "::error::git ls-remote failed (exit $rc)"; exit "$rc" ;;
+          esac
+
+      - name: Run pre-release check script
+        if: inputs.pre-release-check-script != ''
+        run: Rscript "$PRE_RELEASE_CHECK_SCRIPT"
+
+      # Tag locally first so autonewsmd can place commits under the new version.
+      - name: Commit and tag release locally
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if [ -f NEWS.md ]; then git add NEWS.md; fi
+          git commit -m "chore: release v${VERSION} [skip ci]"
+          git tag "v${VERSION}"
+
+      - name: Generate NEWS.md
+        if: inputs.notes-mode == 'autonewsmd'
+        shell: Rscript {0}
+        run: |
+          an <- autonewsmd::autonewsmd$new(
+            repo_name = Sys.getenv("PACKAGE"),
+            repo_path = getwd()
+          )
+          an$generate()
+          an$write(force = TRUE)
+
+      - name: Post-process NEWS.md
+        if: inputs.notes-mode == 'autonewsmd' && inputs.news-postprocess-script != ''
+        run: Rscript "$NEWS_POSTPROCESS_SCRIPT"
+
+      - name: Fold NEWS.md into the release commit
+        if: inputs.notes-mode == 'autonewsmd'
+        run: |
+          git add NEWS.md
+          git commit --amend --no-edit
+          git tag -f "v${VERSION}"
+
+      # Build from the tagged tree only, so stray workspace files never ship.
+      - name: Build source tarball
+        run: |
+          mkdir -p "$RUNNER_TEMP/src" "$RUNNER_TEMP/dist"
+          git archive --format=tar HEAD | tar -x -C "$RUNNER_TEMP/src"
+          cd "$RUNNER_TEMP/dist"
+          R CMD build "$RUNNER_TEMP/src"
+          test -f "${PACKAGE}_${VERSION}.tar.gz"
+          sha256sum "${PACKAGE}_${VERSION}.tar.gz" > SHA256SUMS
+
+      - name: Check the built tarball
+        shell: Rscript {0}
+        run: |
+          tmp <- Sys.getenv("RUNNER_TEMP")
+          tarball <- sprintf("%s_%s.tar.gz", Sys.getenv("PACKAGE"), Sys.getenv("VERSION"))
+          rcmdcheck::rcmdcheck(
+            file.path(tmp, "dist", tarball),
+            args = "--no-manual",
+            error_on = "warning",
+            check_dir = file.path(tmp, "check")
+          )
+
+      - name: Extract release notes from NEWS.md
+        if: inputs.notes-mode == 'autonewsmd'
+        run: |
+          awk -v ver="$VERSION" '
+            /^##? / { if (found) exit; for (i = 2; i <= NF; i++) if ($i == ver || $i == "v" ver) found = 1; next }
+            found
+          ' NEWS.md > "$RUNNER_TEMP/dist/RELEASE_NOTES.md"
+          if [ ! -s "$RUNNER_TEMP/dist/RELEASE_NOTES.md" ]; then
+            echo "::error::No NEWS.md section found for ${VERSION}"
+            exit 1
+          fi
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-dist
+          path: ${{ runner.temp }}/dist
+          if-no-files-found: error
+
+      - name: Push release commit and tag
+        if: ${{ !inputs.dry-run }}
+        run: git push --atomic origin HEAD:refs/heads/main "refs/tags/v${VERSION}"
+
+  publish:
+    name: Publish GitHub release
+    needs: check
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      TAG: v${{ needs.check.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-dist
+          path: dist
+
+      - name: Verify checksums
+        run: cd dist && sha256sum --check SHA256SUMS
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: v${{ needs.check.outputs.version }}
+          name: ${{ needs.check.outputs.package }} v${{ needs.check.outputs.version }}
+          draft: true
+          files: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+          generate_release_notes: ${{ inputs.notes-mode == 'generate-notes' }}
+          body_path: ${{ inputs.notes-mode == 'autonewsmd' && 'dist/RELEASE_NOTES.md' || '' }}
+
+      - name: Publish release
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
