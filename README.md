@@ -40,7 +40,7 @@ The composite actions are for project-specific workflows in caller repos (for ex
    Get the SHA with `git ls-remote https://github.com/seanthimons/baseline refs/tags/v1.0.0`.
 4. Edit the caller's triggers, branch filters, and inputs. Pass secrets explicitly by name. Do not use `secrets: inherit`.
 5. Grant permissions on the calling job only. A callee cannot escalate beyond what the caller grants. Keep the caller's top-level `permissions: contents: read`.
-6. Copy the config files you need from `templates/config/` to the repo root (`dependabot.yml` goes to `.github/dependabot.yml`).
+6. Copy the config files you need from `templates/config/` (`.gitignore` there is the root-local pattern: ignores every root dot-directory and root `*.md` without naming agent files; opt files in with `!/<name>`) to the repo root (`dependabot.yml` goes to `.github/dependabot.yml`).
 7. Delete the repo's old local copy of each workflow you replaced.
 8. Update branch protection. Required status check names change to `caller-job / callee-job (matrix)`, for example `R CMD check / ubuntu-latest (release)`. Change them in the same PR, or PRs block on a check that never reports.
 

@@ -1,0 +1,11 @@
+# Root-local workspace files. Blocks every root dot-directory (.claude/, .planning/,
+# .beans/, .worktrees/) and every root markdown file (AGENTS.md, CLAUDE.md, HANDOFF.md,
+# session notes) without naming them. Add a specific !/<name> rule to opt a file in.
+/.*/
+/*.md
+!/.github/
+!/README.md
+# Sensitive repo: leave AGENTS.md and CLAUDE.md ignored. Shared repo: opt them in.
+# !/AGENTS.md
+# !/CLAUDE.md
+# !/CONTEXT.md

@@ -6,9 +6,10 @@ To adopt it: fill every `FILL` comment, delete sections marked for other
 project types (`IF SHINY`, `IF PACKAGE`, `IF PIPELINE`), and replace the
 `example from <repo>` comments with this repo's real rules or delete them.
 
-- `AGENTS.md` and `CLAUDE.md` are tracked in git. Never gitignore or
-  `.git/info/exclude` them; if a pattern like `/*.md` exists, add
-  `!/AGENTS.md` and `!/CLAUDE.md`.
+- Decide once whether `AGENTS.md` and `CLAUDE.md` are tracked. Shared repo:
+  track them (`!/AGENTS.md`, `!/CLAUDE.md` in `.gitignore`). Sensitive repo:
+  `templates/config/.gitignore` blocks all root dot-directories and root
+  markdown without naming them, so the files stay local and unlisted.
 - Save both as UTF-8 without BOM, LF line endings. No `@` imports here (not every agent
   expands them).
 - Where source rules conflicted, this file picks one and records the loser in
