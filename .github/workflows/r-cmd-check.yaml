@@ -50,10 +50,11 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
       R_PROFILE_USER: /dev/null
       RENV_CONFIG_AUTOLOADER_ENABLED: false
-      # Empty string defers to the package's Config/testthat/parallel.
-      TESTTHAT_PARALLEL: ${{ (startsWith(matrix.config.os, 'windows') && !inputs.testthat-parallel-windows) && 'FALSE' || '' }}
-
     steps:
+      - name: Disable parallel tests on Windows
+        if: startsWith(matrix.config.os, 'windows') && !inputs.testthat-parallel-windows
+        run: echo 'TESTTHAT_PARALLEL=FALSE' >> "$GITHUB_ENV"
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
