@@ -42,7 +42,7 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           subject_re="^(${TYPES})(\((${SCOPE_REGEX})\))?!?: .+"
-          branch_re='^(feature|feat|bugfix|fix|hotfix|release|chore)/[a-z0-9._-]+$'
+          branch_re='^(feature|feat|bugfix|fix|hotfix|release|chore|ci|docs|refactor|test)/[a-z0-9._-]+$'
           trunk_re='^(main|master|develop)$'
           agent_re='(^|[/._-])(codex|claude|copilot|cursor|chatgpt|gpt|openai|anthropic|gemini|llama|mistral|grok|qwen|deepseek|llm|ai)([/._-]|$)'
           is_bot() { [ "$1" = 'github-actions[bot]' ] || [ "$1" = 'dependabot[bot]' ]; }
@@ -74,7 +74,7 @@ jobs:
             echo "Commit subjects and PR title: <type>[(scope)][!]: <description>"
             echo "  type:  ${TYPES}"
             echo "  scope: ${SCOPE_REGEX}"
-            echo "Branch: main|master|develop, or <feature|feat|bugfix|fix|hotfix|release|chore>/<lowercase-words>"
+            echo "Branch: main|master|develop, or <feature|feat|bugfix|fix|hotfix|release|chore|ci|docs|refactor|test>/<lowercase-words>"
             echo "  and no agent/model names (codex, claude, gpt, ai, ...) as words."
             exit 1
           fi

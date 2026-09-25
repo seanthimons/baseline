@@ -123,7 +123,7 @@ and gets tests. -->
 - Rejected: branching before every change, including typo fixes (serapeum).
 - Branch names follow Conventional Branch: `type/description`, lowercase,
   hyphen-separated. Prefixes: `feat/`, `feature/`, `fix/`, `bugfix/`,
-  `hotfix/`, `release/`, `chore/`, `docs/`, `refactor/`, `test/`.
+  `hotfix/`, `release/`, `chore/`, `ci/`, `docs/`, `refactor/`, `test/`.
 - Trunks are `main`, `master`, and `develop`; do not prefix them.
 - Put issue ids in the description: `fix/issue-123-api-timeout`.
 - Hard block: no agent, assistant, model, or AI source names in branch
