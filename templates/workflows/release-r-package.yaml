@@ -7,7 +7,9 @@ name: Release
 
 on:
   # Opt in to a patch release on every merge to main: uncomment push below.
-  # CI-only changes don't ship in the package, and the release commit carries
+  # Requires a branch rule on main that requires a pull request before
+  # merging, so every push to main is a PR merge. Anyone on the rule's bypass
+  # list who pushes directly also cuts a release. CI-only changes don't ship in the package, and the release commit carries
   # [skip ci], so neither re-triggers. The callee's "release" concurrency group
   # runs releases one at a time; if main moves mid-release, that push is
   # rejected and the run for the newer merge releases both changes.
