@@ -35,9 +35,9 @@ The composite actions are for project-specific workflows in caller repos (for ex
 2. Copy each caller stub from `templates/workflows/` into `<repo>/.github/workflows/`. Keep the `.yaml` extension.
 3. Pin the `uses:` ref to a full commit SHA of a baseline release tag, with the tag as a trailing comment:
    ```yaml
-   uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@<40-char-sha> # v1.0.0
+   uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@<40-char-sha> # v1.1.0
    ```
-   Get the SHA with `git ls-remote https://github.com/seanthimons/baseline refs/tags/v1.0.0`.
+   Get the SHA with `git ls-remote https://github.com/seanthimons/baseline refs/tags/v1.1.0`.
 4. Edit the caller's triggers, branch filters, and inputs. Pass secrets explicitly by name. Do not use `secrets: inherit`.
 5. Grant permissions on the calling job only. A callee cannot escalate beyond what the caller grants. Keep the caller's top-level `permissions: contents: read`.
 6. Copy the config files you need from `templates/config/` (`.gitignore` there is the root-local pattern: ignores every root dot-directory and root `*.md` without naming agent files; opt files in with `!/<name>`) to the repo root (`dependabot.yml` goes to `.github/dependabot.yml`).
