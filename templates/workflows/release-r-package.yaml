@@ -6,6 +6,14 @@
 name: Release
 
 on:
+  # Opt in to a patch release on every merge to main: uncomment push below.
+  # CI-only changes don't ship in the package, and the release commit carries
+  # [skip ci], so neither re-triggers. The callee's "release" concurrency group
+  # runs releases one at a time; if main moves mid-release, that push is
+  # rejected and the run for the newer merge releases both changes.
+  # push:
+  #   branches: [main]
+  #   paths-ignore: ['.github/**']
   workflow_dispatch:
     inputs:
       version-type:
@@ -28,7 +36,9 @@ jobs:
       contents: write
     uses: seanthimons/baseline/.github/workflows/release-r-package.yaml@0a2a80a6d045ffbdacedd59e35dce1497e2acfc1 # v1.0.0
     with:
-      version-type: ${{ inputs.version-type }}
-      dry-run: ${{ inputs.dry-run }}
+      # Push events have no inputs. An empty version-type would override the
+      # callee's patch default and fail its validation, so fall back here.
+      version-type: ${{ inputs.version-type || 'patch' }}
+      dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
     secrets:
       RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
