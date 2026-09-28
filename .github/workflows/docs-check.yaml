@@ -1,0 +1,71 @@
+# Reusable workflow: block PR merge until user docs are confirmed up to date.
+# Passes when the PR body has a ticked "- [x] User docs" box. With diff-mode
+# (default), it also passes when no code path changed or a docs path changed.
+# Caller permissions: contents: read. Secrets: none.
+# Trigger from pull_request (include the edited type). Example caller: templates/workflows/docs-check.yaml
+name: Docs Check
+
+on:
+  workflow_call:
+    inputs:
+      diff-mode:
+        description: Pass without the checkbox when code-regex matches no changed file or docs-regex matches one
+        type: boolean
+        default: true
+      code-regex:
+        description: Extended regex for changed paths that need docs
+        type: string
+        default: '^R/'
+      docs-regex:
+        description: Extended regex for changed paths that count as docs
+        type: string
+        default: '^(man|vignettes)/|^README\.(Rmd|md)$'
+
+permissions:
+  contents: read
+
+jobs:
+  docs-check:
+    name: Docs confirmation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        if: inputs.diff-mode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require docs checkbox or docs changes
+        shell: bash
+        env:
+          DIFF_MODE: ${{ inputs.diff-mode }}
+          CODE_REGEX: ${{ inputs.code-regex }}
+          DOCS_REGEX: ${{ inputs.docs-regex }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if printf '%s\n' "$BODY" | grep -qE '^[[:space:]]*[-*] \[[xX]\] User docs'; then
+            echo "User docs box is ticked."
+            exit 0
+          fi
+
+          if [ "$DIFF_MODE" = 'true' ]; then
+            changed=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
+            if ! grep -qE "$CODE_REGEX" <<<"$changed"; then
+              echo "No changed path matches ${CODE_REGEX}; docs not required."
+              exit 0
+            fi
+            if grep -qE "$DOCS_REGEX" <<<"$changed"; then
+              echo "Docs changed alongside code:"
+              grep -E "$DOCS_REGEX" <<<"$changed"
+              exit 0
+            fi
+            echo "Code changed without docs:"
+            grep -E "$CODE_REGEX" <<<"$changed"
+          fi
+
+          echo "::error::Update user docs, or tick '- [x] User docs (README, vignettes, pkgdown) are up to date' in the PR description."
+          exit 1
