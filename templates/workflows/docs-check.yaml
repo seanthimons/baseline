@@ -18,4 +18,4 @@ concurrency:
 jobs:
   docs-check:
     name: Docs Check
-    uses: seanthimons/baseline/.github/workflows/docs-check.yaml@df028b5dcb494da6209f447183823492e6a44ac2 # v1.1.0
+    uses: seanthimons/baseline/.github/workflows/docs-check.yaml@c99a0a60eed152a08d1e34841d45573fef812af2 # v1.2.0
