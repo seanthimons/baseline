@@ -1,0 +1,21 @@
+# Caller: block merge until user docs are updated or confirmed in the PR description.
+# Copy to .github/workflows/docs-check.yaml and templates/config/pull_request_template.md
+# to .github/pull_request_template.md. Make "Docs Check / Docs confirmation" a required
+# status check on main. Permissions: contents: read. Secrets: none.
+name: Docs Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  docs-check:
+    name: Docs Check
+    uses: seanthimons/baseline/.github/workflows/docs-check.yaml@df028b5dcb494da6209f447183823492e6a44ac2 # v1.1.0
