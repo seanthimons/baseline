@@ -1,0 +1,1 @@
+- [ ] User docs (README, vignettes, pkgdown) are up to date
