@@ -4,9 +4,9 @@ name: Self lint
 on:
   push:
     branches: [main]
-    paths: ['.github/**']
+    paths: ['.github/**', 'tests/**']
   pull_request:
-    paths: ['.github/**']
+    paths: ['.github/**', 'tests/**']
   workflow_dispatch:
 
 permissions:
@@ -20,3 +20,17 @@ jobs:
   lint:
     name: Lint workflows
     uses: ./.github/workflows/lint-workflows.yaml
+
+  regression:
+    name: Workflow regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check workflow behavior
+        run: |
+          python3 -m pip install PyYAML==6.0.2
+          python3 tests/check-ci.py

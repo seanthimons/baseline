@@ -48,10 +48,9 @@ jobs:
           is_bot() { [ "$1" = 'github-actions[bot]' ] || [ "$1" = 'dependabot[bot]' ]; }
           bad=()
 
-          while IFS=$'\t' read -r sha author subject; do
-            is_bot "$author" && continue
+          while IFS=$'\t' read -r sha subject; do
             grep -qE "$subject_re" <<<"$subject" || bad+=("commit ${sha:0:8}: ${subject}")
-          done < <(git log --no-merges --format='%H%x09%an%x09%s' "${BASE_SHA}..${HEAD_SHA}")
+          done < <(git log --no-merges --format='%H%x09%s' "${BASE_SHA}..${HEAD_SHA}")
 
           grep -qE "$subject_re" <<<"$PR_TITLE" || bad+=("PR title: ${PR_TITLE}")
 

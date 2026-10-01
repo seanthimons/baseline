@@ -86,10 +86,20 @@ Config files:
 
 | Secret | Used by | Required | Scope |
 |---|---|---|---|
-| `RELEASE_PAT` | `release-r-package.yaml` | yes | Fine-grained PAT limited to the one repository, with Repository permissions > Contents: Read and write. The token owner must be allowed to push to the protected default branch (bypass or admin on the branch rule). `GITHUB_TOKEN` cannot push the release commit and tag to a protected `main`. |
+| `RELEASE_PAT` | `release-r-package.yaml` | yes | Fine-grained PAT limited to the one repository, with Repository permissions > Contents: Read and write. For `prepare-pr`, also grant Pull requests read/write. PR releases need no main bypass; only the legacy `direct` mode requires an owner allowed to push to protected main. Checkout uses a read-only token; the PAT is scoped to push and PR-creation steps. |
 | `GITLEAKS_LICENSE` | `gitleaks.yaml` | no | Only needed if the repo moves to an organization account. Personal-account repos do not need it. |
 
 No other workflow takes secrets. API keys such as `CTX_API_KEY` stay in project-specific live-API workflows and must never be passed to baseline callees.
+
+## Releases through a PR
+
+Copy `templates/workflows/release-r-package-pr.yaml` and pin it to a baseline
+release supporting `release-mode`. Run `prepare-pr` with `dry-run: false` from
+main to open a checked version-and-NEWS PR. Review and merge it normally, then
+run `publish` from main with `dry-run: false`. Publishing checks the merged
+source without bumping again and creates only the version tag. Neither step
+pushes main, so the PR-only branch rule needs no bypass. Dry-run defaults to
+true in this template. The legacy caller and direct mode remain supported.
 
 ## GitHub Pages setting
 
