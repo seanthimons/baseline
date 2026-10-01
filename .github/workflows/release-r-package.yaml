@@ -2,13 +2,18 @@
 # tarball once, R CMD check that exact tarball, push, then publish a GitHub release.
 # Caller permissions: contents: write on the calling job (publish job needs it).
 # Secret RELEASE_PAT: fine-grained PAT, Contents read/write on this repo, owned by
-# someone allowed to push to protected main (used for checkout and the push).
+# someone allowed to push to main for direct releases. PR mode also needs
+# Pull requests read/write; it never pushes main.
 # Example caller: templates/workflows/release-r-package.yaml
 name: Release R package
 
 on:
   workflow_call:
     inputs:
+      release-mode:
+        description: "direct: bump and push main; prepare-pr: open a release PR; publish: release the merged version without bumping"
+        type: string
+        default: direct
       version-type:
         description: "Version bump passed to usethis::use_version(): major, minor, patch, or dev"
         type: string
@@ -58,14 +63,20 @@ jobs:
       R_PROFILE_USER: /dev/null
       RENV_CONFIG_AUTOLOADER_ENABLED: "false"
       GITHUB_PAT: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
       VERSION_TYPE: ${{ inputs.version-type }}
       NOTES_MODE: ${{ inputs.notes-mode }}
       NEWS_POSTPROCESS_SCRIPT: ${{ inputs.news-postprocess-script }}
       PRE_RELEASE_CHECK_SCRIPT: ${{ inputs.pre-release-check-script }}
       DRY_RUN: ${{ inputs.dry-run }}
+      RELEASE_MODE: ${{ inputs.release-mode }}
     steps:
       - name: Validate inputs and ref
         run: |
+          case "$RELEASE_MODE" in
+            direct|prepare-pr|publish) ;;
+            *) echo "::error::release-mode must be direct, prepare-pr, or publish"; exit 1 ;;
+          esac
           case "$VERSION_TYPE" in
             major|minor|patch|dev) ;;
             *) echo "::error::version-type must be one of major, minor, patch, dev"; exit 1 ;;
@@ -79,12 +90,11 @@ jobs:
             exit 1
           fi
 
-      # Credentials persist on purpose: the final push uses RELEASE_PAT.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT }}
+          persist-credentials: false
 
       - name: Set up pandoc
         uses: r-lib/actions/setup-pandoc@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
@@ -109,6 +119,7 @@ jobs:
             ${{ inputs.notes-mode == 'autonewsmd' && 'any::autonewsmd' || '' }}
 
       - name: Bump version
+        if: inputs.release-mode != 'publish'
         shell: Rscript {0}
         run: usethis::use_version(Sys.getenv("VERSION_TYPE"))
 
@@ -125,12 +136,22 @@ jobs:
           cat(out, file = Sys.getenv("GITHUB_OUTPUT"), sep = "\n", append = TRUE)
           cat(env, file = Sys.getenv("GITHUB_ENV"), sep = "\n", append = TRUE)
 
-      - name: Refuse an existing tag
+      - name: Validate release tag
         run: |
+          gh auth setup-git
           rc=0
           git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null || rc=$?
           case "$rc" in
-            0) echo "::error::Tag v${VERSION} already exists on origin"; exit 1 ;;
+            0)
+              if [ "$RELEASE_MODE" != "publish" ]; then
+                echo "::error::Tag v${VERSION} already exists on origin"; exit 1
+              fi
+              # A publishing rerun may reuse its own tag, never somebody else's.
+              git fetch origin "refs/tags/v${VERSION}"
+              if [ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$(git rev-parse HEAD)" ]; then
+                echo "::error::Existing tag does not point to this merged commit"; exit 1
+              fi
+              ;;
             2) ;;
             *) echo "::error::git ls-remote failed (exit $rc)"; exit "$rc" ;;
           esac
@@ -141,16 +162,19 @@ jobs:
 
       # Tag locally first so autonewsmd can place commits under the new version.
       - name: Commit and tag release locally
+        if: inputs.release-mode != 'publish'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if [ -f NEWS.md ]; then git add NEWS.md; fi
-          git commit -m "chore: release v${VERSION} [skip ci]"
+          subject="chore: release v${VERSION}"
+          if [ "$RELEASE_MODE" = "direct" ]; then subject="$subject [skip ci]"; fi
+          git commit -m "$subject"
           git tag "v${VERSION}"
 
       - name: Generate NEWS.md
-        if: inputs.notes-mode == 'autonewsmd'
+        if: inputs.release-mode != 'publish' && inputs.notes-mode == 'autonewsmd'
         shell: Rscript {0}
         run: |
           an <- autonewsmd::autonewsmd$new(
@@ -167,11 +191,11 @@ jobs:
           writeLines(news, "NEWS.md", useBytes = TRUE)
 
       - name: Post-process NEWS.md
-        if: inputs.notes-mode == 'autonewsmd' && inputs.news-postprocess-script != ''
+        if: inputs.release-mode != 'publish' && inputs.notes-mode == 'autonewsmd' && inputs.news-postprocess-script != ''
         run: Rscript "$NEWS_POSTPROCESS_SCRIPT"
 
       - name: Fold NEWS.md into the release commit
-        if: inputs.notes-mode == 'autonewsmd'
+        if: inputs.release-mode != 'publish' && inputs.notes-mode == 'autonewsmd'
         run: |
           git add NEWS.md
           git commit --amend --no-edit
@@ -218,14 +242,36 @@ jobs:
           path: ${{ runner.temp }}/dist
           if-no-files-found: error
 
-      - name: Push release commit and tag
+      - name: Push release refs
         if: ${{ !inputs.dry-run }}
-        run: git push --atomic origin HEAD:refs/heads/main "refs/tags/v${VERSION}"
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          gh auth setup-git
+          case "$RELEASE_MODE" in
+            direct) git push --atomic origin HEAD:refs/heads/main "refs/tags/v${VERSION}" ;;
+            prepare-pr) git push origin "HEAD:refs/heads/release/v${VERSION}" ;;
+            publish)
+              # No branch write: the version and NEWS already arrived through a PR.
+              git push origin "HEAD:refs/tags/v${VERSION}"
+              ;;
+          esac
+
+      - name: Open release pull request
+        if: ${{ !inputs.dry-run && inputs.release-mode == 'prepare-pr' }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          printf 'Release %s v%s. The source tarball passed R CMD check.\n\n- [x] User docs updated in NEWS.md.\n\nAfter merging, run Release with release-mode=publish from main.\n' \
+            "$PACKAGE" "$VERSION" > "$RUNNER_TEMP/release-pr.md"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main \
+            --head "release/v${VERSION}" --title "chore: release v${VERSION}" \
+            --body-file "$RUNNER_TEMP/release-pr.md"
 
   publish:
     name: Publish GitHub release
     needs: check
-    if: ${{ !inputs.dry-run }}
+    if: ${{ !inputs.dry-run && inputs.release-mode != 'prepare-pr' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
