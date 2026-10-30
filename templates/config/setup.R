@@ -40,7 +40,7 @@ local({
     options(pkg.platforms = unique(c(platform, sub("^([^-]+)-[^-]+-", "\\1-pc-", platform), "source")))
   }
 
-  ref <- "b502c0b52abcb9829beb749efc1686cef0041130"
+  ref <- "85ea5abc0d2d16c0d9601f640c4f3510b784a388"
   path <- find.package("boosterpak", quiet = TRUE)
   installed_ref <- if (length(path)) {
     read.dcf(file.path(path, "DESCRIPTION"), fields = "RemoteSha")[[1L]]
