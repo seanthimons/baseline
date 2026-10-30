@@ -1,9 +1,10 @@
-# Composite R setup: pandoc, R (public RSPM), optional Quarto/Air, then renv or pak deps.
+# Composite R setup: pandoc, R (P3M), optional Quarto/Air, then renv or pak deps.
 # Callers must run actions/checkout first. Composite actions cannot set job env,
 # so set these at the job level in the calling workflow:
 #   env:
 #     R_PROFILE_USER: /dev/null
 #     RENV_CONFIG_AUTOLOADER_ENABLED: 'false'
+#     RENV_CONFIG_PAK_ENABLED: 'true'
 name: R setup
 description: Install pandoc, R, optional Quarto/Air, and package dependencies.
 
@@ -37,6 +38,7 @@ runs:
       uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
       with:
         r-version: ${{ inputs.r-version }}
+        cran: https://p3m.dev/cran/latest
         use-public-rspm: true
 
     - name: Set up Quarto
@@ -49,6 +51,8 @@ runs:
 
     - name: Restore renv library
       if: inputs.use-renv == 'true'
+      env:
+        RENV_CONFIG_PAK_ENABLED: "true"
       uses: r-lib/actions/setup-renv@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
 
     - name: Install R dependencies

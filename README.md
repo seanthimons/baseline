@@ -80,6 +80,7 @@ Config files:
 | `.gitattributes` | every repo |
 | `.gitleaks.toml` | every repo; each repo keeps its own allowlist entries |
 | `air.toml` | R repos |
+| `.Rprofile` | R repos: merge P3M and renv/pak defaults into the existing profile |
 | `codecov.yml` | repos that enable Codecov in `test-coverage.yaml` |
 
 ## Required secrets
@@ -115,3 +116,25 @@ Deploy jobs are skipped on `pull_request` events. The build still runs as a PR c
 - No `${{ inputs.* }}` or `${{ github.event.* }}` in `run:` scripts. Values pass through `env:`.
 - R jobs set `R_PROFILE_USER=/dev/null` and `RENV_CONFIG_AUTOLOADER_ENABLED=false`, so a repo's `.Rprofile` cannot activate renv over the installed library.
 - `lint-workflows.yaml` (actionlint and zizmor) enforces these rules. `self-lint.yaml` runs it on this repo.
+
+## R repositories and cross-platform installs
+
+R workflows and the R setup composite explicitly use `https://p3m.dev/cran/latest`
+as CRAN and keep `use-public-rspm: true` so setup-r can choose platform binaries.
+renv restores enable pak with `RENV_CONFIG_PAK_ENABLED=true`; package dependency
+workflows already use pak through setup-r-dependencies.
+
+For local development, merge `templates/config/.Rprofile` into the repo's existing
+`.Rprofile`, before `source("renv/activate.R")` if present. It sets the CRAN entry
+while preserving other named repositories, and enables `renv.config.pak.enabled`.
+Use the portable P3M URL in shared configuration, rather than copying a Linux
+distribution-specific binary URL or a machine's library/cache paths. Existing
+lockfile repositories and pinned versions still apply during renv restore; this
+change does not rewrite lockfiles or force an update to their packages. See the
+[renv configuration reference](https://rstudio.github.io/renv/reference/config.html)
+for pak configuration and option precedence.
+
+Downstream repos receive CI changes by bumping their baseline workflow/composite
+SHA pins after merge. Local defaults require merging the copied template too;
+CI deliberately skips project `.Rprofile` files. No downstream files are changed
+by updating baseline alone.

@@ -66,3 +66,13 @@ Not reusable. Runs `lint-workflows.yaml` against this repository on pushes to `m
 
 - The shinylive Pages deploy is a copied example in `examples/shinylive-pages.yaml`, because it already wraps `posit-dev/r-shinylive`'s reusable workflow.
 - Project-specific workflows (ComptoxR db builds, schema-check, cassette recording, epa-sswqs data release) stay in their own repos. They may use the composite actions in `.github/actions/r-setup` and `.github/actions/pkg-metadata`, pinned by SHA.
+
+### R package repositories
+
+All R setup steps explicitly set `cran: https://p3m.dev/cran/latest` and retain
+`use-public-rspm: true` for platform-aware binary selection. renv restore jobs
+set `RENV_CONFIG_PAK_ENABLED=true`, including the optional renv branch of the
+R setup composite and Quarto builds. Package dependency jobs already install
+with pak via setup-r-dependencies. Existing renv lockfile repositories are
+preserved. For local settings, merge `templates/config/.Rprofile` before renv
+activation; CI ignores that profile and supplies its own settings.

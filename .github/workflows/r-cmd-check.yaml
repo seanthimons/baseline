@@ -50,6 +50,7 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
       R_PROFILE_USER: /dev/null
       RENV_CONFIG_AUTOLOADER_ENABLED: false
+      RENV_CONFIG_PAK_ENABLED: "true"
 
     steps:
       - name: Checkout repository
@@ -60,6 +61,7 @@ jobs:
       # Leave TESTTHAT_PARALLEL unset elsewhere so testthat uses package defaults.
       - name: Disable parallel tests on Windows
         if: startsWith(matrix.config.os, 'windows') && !inputs.testthat-parallel-windows
+        shell: bash
         run: echo 'TESTTHAT_PARALLEL=FALSE' >> "$GITHUB_ENV"
 
       - name: Set up pandoc
@@ -69,6 +71,7 @@ jobs:
         uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
           r-version: ${{ matrix.config.r }}
+          cran: https://p3m.dev/cran/latest
           use-public-rspm: true
 
       - name: Set up Quarto

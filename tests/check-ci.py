@@ -143,3 +143,34 @@ with tempfile.TemporaryDirectory() as tmp:
     assert result.returncode != 0
     assert git('ls-remote', 'origin', 'refs/heads/main').split()[0] == prepared
 print('Release ref and credential regression checks passed')
+
+# Repository defaults must reach every R setup and renv restore on every OS.
+for path in [*Path('.github/workflows').glob('*.yaml'), Path('.github/actions/r-setup/action.yaml')]:
+    config = yaml.safe_load(path.read_text())
+    jobs = config.get('jobs', {'composite': {'steps': config.get('runs', {}).get('steps', [])}})
+    for job in jobs.values():
+        for step in job.get('steps', []):
+            uses = step.get('uses', '')
+            if uses.startswith('r-lib/actions/setup-r@'):
+                assert step['with']['cran'] == 'https://p3m.dev/cran/latest', path
+                assert step['with']['use-public-rspm'] is True, path
+            if uses.startswith('r-lib/actions/setup-renv@'):
+                env = {**job.get('env', {}), **step.get('env', {})}
+                assert env['RENV_CONFIG_PAK_ENABLED'] == 'true', path
+assert next(s for s in check['jobs']['r-cmd-check']['steps']
+            if s['name'] == 'Disable parallel tests on Windows')['shell'] == 'bash'
+
+# Source the actual copied profile, preserving an additional repository.
+with tempfile.TemporaryDirectory() as tmp:
+    script = Path(tmp) / 'check-profile.R'
+    script.write_text('''options(repos = c(CRAN = "https://cloud.r-project.org", extra = "https://example.org"))
+source("templates/config/.Rprofile")
+stopifnot(
+  identical(getOption("repos")[["CRAN"]], "https://p3m.dev/cran/latest"),
+  identical(getOption("repos")[["extra"]], "https://example.org"),
+  identical(getOption("renv.config.pak.enabled"), TRUE)
+)
+''')
+    result = run(['Rscript', '--vanilla', str(script)])
+    assert result.returncode == 0, (result.stdout, result.stderr)
+print('P3M, renv/pak, and cross-platform shell regression checks passed')

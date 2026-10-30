@@ -81,6 +81,7 @@ jobs:
       GITHUB_PAT: ${{ github.token }}
       R_PROFILE_USER: /dev/null
       RENV_CONFIG_AUTOLOADER_ENABLED: false
+      RENV_CONFIG_PAK_ENABLED: "true"
       PACKAGE: ${{ needs.metadata.outputs.package }}
       VERSION: ${{ needs.metadata.outputs.version }}
       SHORT_SHA: ${{ needs.metadata.outputs.short_sha }}
@@ -97,6 +98,7 @@ jobs:
       - name: Set up R
         uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
+          cran: https://p3m.dev/cran/latest
           use-public-rspm: true
 
       - name: Install package dependencies
@@ -137,6 +139,7 @@ jobs:
       GITHUB_PAT: ${{ github.token }}
       R_PROFILE_USER: /dev/null
       RENV_CONFIG_AUTOLOADER_ENABLED: false
+      RENV_CONFIG_PAK_ENABLED: "true"
       PACKAGE: ${{ needs.metadata.outputs.package }}
       VERSION: ${{ needs.metadata.outputs.version }}
       SHORT_SHA: ${{ needs.metadata.outputs.short_sha }}
@@ -155,6 +158,7 @@ jobs:
       - name: Set up R
         uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
+          cran: https://p3m.dev/cran/latest
           use-public-rspm: true
 
       - name: Install package dependencies
