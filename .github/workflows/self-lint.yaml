@@ -24,12 +24,21 @@ jobs:
   regression:
     name: Workflow regressions
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    env:
+      R_PROFILE_USER: /dev/null
+      RENV_CONFIG_AUTOLOADER_ENABLED: "false"
+      RENV_CONFIG_PAK_ENABLED: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Set up R for profile checks
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          cran: https://p3m.dev/cran/latest
+          use-public-rspm: true
       - name: Check workflow behavior
         run: |
           python3 -m pip install PyYAML==6.0.2
