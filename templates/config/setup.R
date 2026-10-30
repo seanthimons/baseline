@@ -11,12 +11,16 @@ local({
   )
   Sys.setenv(RENV_PROJECT = getwd())
   source("renv/activate.R")
-  # Runtime-only URL: shared configuration and lockfiles stay portable.
+  # Keep shared URLs portable; select Linux binaries only for this process.
+  repos <- getOption("repos")
+  ppm <- "^(https?://(?:p3m\\.dev|packagemanager\\.(?:posit\\.co|rstudio\\.com))/[^/]+)"
+  repos <- sub(paste0(ppm, "/__linux__/[^/]+/"), "\\1/", repos, perl = TRUE)
+  if (!any(names(repos) == "CRAN_fallback")) {
+    repos["CRAN_fallback"] <- "https://cloud.r-project.org"
+  }
   if (identical(R.version$os, "linux-gnu")) {
-    repos <- getOption("repos")
-    repos["CRAN"] <- "https://p3m.dev/cran/__linux__/manylinux_2_28/latest"
+    repos <- sub(paste0(ppm, "/([^/]+)$"), "\\1/__linux__/manylinux_2_28/\\2", repos, perl = TRUE)
     options(
-      repos = repos,
       HTTPUserAgent = sprintf(
         "R/%s R (%s)",
         getRversion(),
@@ -24,6 +28,7 @@ local({
       )
     )
   }
+  options(repos = repos, renv.config.repos.override = repos)
 
   if (!requireNamespace("pak", quietly = TRUE)) {
     renv::install("pak", prompt = FALSE)
@@ -35,7 +40,7 @@ local({
     options(pkg.platforms = unique(c(platform, sub("^([^-]+)-[^-]+-", "\\1-pc-", platform), "source")))
   }
 
-  ref <- "14346ade36ab381c3d0388821b3b573474997852"
+  ref <- "b502c0b52abcb9829beb749efc1686cef0041130"
   path <- find.package("boosterpak", quiet = TRUE)
   installed_ref <- if (length(path)) {
     read.dcf(file.path(path, "DESCRIPTION"), fields = "RemoteSha")[[1L]]

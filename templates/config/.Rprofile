@@ -1,9 +1,12 @@
 # Local defaults; setup.R is the only entry point that installs packages.
 local({
-  options(
-    repos = c(getOption("repos")[names(getOption("repos")) != "CRAN"], CRAN = "https://p3m.dev/cran/latest"),
-    renv.config.pak.enabled = TRUE
-  )
+  repos <- getOption("repos")
+  repos["CRAN"] <- "https://p3m.dev/cran/latest"
+  if (!any(names(repos) == "CRAN_fallback")) {
+    repos["CRAN_fallback"] <- "https://cloud.r-project.org"
+  }
+  options(repos = repos, renv.config.pak.enabled = TRUE)
+
   if (file.exists("renv.lock")) {
     marker <- "renv/local/startup"
     startup <- if (file.exists(marker)) readLines(marker, warn = FALSE) else character()

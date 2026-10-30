@@ -115,13 +115,14 @@ Deploy jobs are skipped on `pull_request` events. The build still runs as a PR c
 - `timeout-minutes` on every job.
 - No concurrency in callees (callers own it), except release (group `release`, no cancel) and Pages deploys (group `pages`, no cancel).
 - No `${{ inputs.* }}` or `${{ github.event.* }}` in `run:` scripts. Values pass through `env:`.
-- R jobs set `R_PROFILE_USER=/dev/null` and `RENV_CONFIG_AUTOLOADER_ENABLED=false`, so a repo's `.Rprofile` cannot activate renv over the installed library.
+- R package and test jobs set `R_PROFILE_USER=/dev/null` and `RENV_CONFIG_AUTOLOADER_ENABLED=false`, so a repo's `.Rprofile` cannot activate renv over the installed library.
 - `lint-workflows.yaml` (actionlint and zizmor) enforces these rules. `self-lint.yaml` runs it on this repo.
 
 ## R repositories and cross-platform installs
 
 R workflows and the R setup composite explicitly use `https://p3m.dev/cran/latest`
 as CRAN and keep `use-public-rspm: true` so setup-r can choose platform binaries.
+Cloud CRAN is an additional binary fallback when P3M does not provide a package.
 renv restores enable pak with `RENV_CONFIG_PAK_ENABLED=true`; package dependency
 workflows already use pak through setup-r-dependencies.
 
@@ -158,6 +159,11 @@ After setup, opening it loads the prepared library without bootstrapping renv or
 restoring packages. A different OS or R minor version requires setup again.
 
 After deliberate dependency changes, use `boosterpak::snapshot_project()` to
-save a portable lockfile. A plain `renv::snapshot()` bypasses cleanup. Existing
-reusable renv CI workflows still use setup-renv and expect the committed
-lockfile to be portable; the setup script does not change their restore path.
+save a portable lockfile. A plain `renv::snapshot()` bypasses cleanup.
+
+For reusable `r-renv-tests` and `quarto-pages` jobs, opt into this same restore
+path with `portable-setup: true` after copying the paired templates and pinning a
+baseline version that supports the input. The R setup composite supports the
+same input with `use-renv: true`; set `r-version: renv` there for locked R.
+Following CI steps receive the prepared library automatically. Existing callers
+keep `setup-renv` unless they opt in.

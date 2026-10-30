@@ -154,6 +154,7 @@ for path in [*Path('.github/workflows').glob('*.yaml'), Path('.github/actions/r-
             if uses.startswith('r-lib/actions/setup-r@'):
                 assert step['with']['cran'] == 'https://p3m.dev/cran/latest', path
                 assert step['with']['use-public-rspm'] is True, path
+                assert step['with']['extra-repositories'] == 'https://cloud.r-project.org', path
             if uses.startswith('r-lib/actions/setup-renv@'):
                 env = {**job.get('env', {}), **step.get('env', {})}
                 assert env['RENV_CONFIG_PAK_ENABLED'] == 'true', path
@@ -196,3 +197,19 @@ stopifnot(!"renv" %in% loadedNamespaces())
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert 'Rscript --vanilla setup.R' in result.stderr
 print('Fresh-clone offline startup check passed')
+
+# The project setup path is opt-in; callers without templates retain setup-renv.
+for filename in ['r-renv-tests.yaml', 'quarto-pages.yaml']:
+    config = yaml.safe_load((Path('.github/workflows') / filename).read_text())
+    inputs = config[True]['workflow_call']['inputs']
+    assert inputs['portable-setup']['default'] is False
+    jobs = config['jobs']
+    steps = next(job['steps'] for job in jobs.values() if any(
+        s.get('uses', '').startswith('r-lib/actions/setup-renv@') for s in job.get('steps', [])))
+    legacy = next(s for s in steps if s.get('uses', '').startswith('r-lib/actions/setup-renv@'))
+    portable = next(s for s in steps if s['name'] == 'Restore portable project environment')
+    assert '!inputs.portable-setup' in legacy['if']
+    assert 'inputs.portable-setup' in portable['if']
+    assert portable['shell'] == 'Rscript --vanilla {0}'
+    assert 'R_LIBS_USER=' in portable['run']
+print('Opt-in portable CI restore checks passed')

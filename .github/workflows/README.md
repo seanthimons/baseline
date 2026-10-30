@@ -4,7 +4,7 @@ Every workflow here except `self-lint.yaml` is a reusable workflow (`on: workflo
 
 All callees declare top-level `permissions: contents: read` and set `timeout-minutes` on every job. A callee cannot hold more permissions than the calling job grants, so the "Caller permissions" below go on the caller's job, not its top level. Secrets are passed explicitly by name; never use `secrets: inherit`.
 
-R jobs set `R_PROFILE_USER=/dev/null` and `RENV_CONFIG_AUTOLOADER_ENABLED=false` at job level. This keeps a repo's `.Rprofile` (for example one that runs `source("renv/activate.R")`) from replacing the library that setup installed. Callee concurrency is limited to the jobs that need serialization: Pages deploys (group `pages`), releases (group `release`), and rolling prereleases (one group per tag), all with `cancel-in-progress: false`.
+R package and test jobs set `R_PROFILE_USER=/dev/null` and `RENV_CONFIG_AUTOLOADER_ENABLED=false` at job level. This keeps a repo's `.Rprofile` (for example one that runs `source("renv/activate.R")`) from replacing the library that setup installed. Callee concurrency is limited to the jobs that need serialization: Pages deploys (group `pages`), releases (group `release`), and rolling prereleases (one group per tag), all with `cancel-in-progress: false`.
 
 ## `r-cmd-check.yaml`
 
@@ -74,5 +74,20 @@ All R setup steps explicitly set `cran: https://p3m.dev/cran/latest` and retain
 set `RENV_CONFIG_PAK_ENABLED=true`, including the optional renv branch of the
 R setup composite and Quarto builds. Package dependency jobs already install
 with pak via setup-r-dependencies. Existing renv lockfile repositories are
-preserved. For local settings, merge `templates/config/.Rprofile` before renv
-activation; CI ignores that profile and supplies its own settings.
+preserved. For local settings, use the paired `templates/config/.Rprofile` and
+`setup.R` templates. CI skips automatic project profiles and can opt into the
+explicit portable setup command below.
+
+### Portable renv setup
+
+`r-renv-tests` and `quarto-pages` accept `portable-setup` (boolean, default
+`false`). After copying `templates/config/setup.R` and `.Rprofile`, enable it to
+restore through boosterpak's environment-only tooling. The project must commit
+`renv.lock` and `renv/activate.R`. Quarto uses locked R when this input and
+`needs-r` are true. The R setup composite has the same opt-in alongside
+`use-renv: true`; set `r-version: renv` for locked R.
+
+The portable step exports its prepared library for following R processes.
+Existing callers retain setup-renv by default. R setup steps keep P3M primary
+and include Cloud CRAN as a binary fallback; portable restores carry that
+fallback into renv's repository override without changing package version pins.
