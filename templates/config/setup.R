@@ -9,6 +9,7 @@ local({
     renv.config.pak.enabled = TRUE,
     renv.config.autoloader.enabled = TRUE
   )
+  Sys.setenv(RENV_PROJECT = getwd())
   source("renv/activate.R")
   # Runtime-only URL: shared configuration and lockfiles stay portable.
   if (identical(R.version$os, "linux-gnu")) {
