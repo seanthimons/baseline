@@ -81,6 +81,7 @@ Config files:
 | `.gitleaks.toml` | every repo; each repo keeps its own allowlist entries |
 | `air.toml` | R repos |
 | `.Rprofile` | R repos: merge P3M and renv/pak defaults into the existing profile |
+| `setup.R` | renv projects: one-command portable restore, with pinned boosterpak tooling |
 | `codecov.yml` | repos that enable Codecov in `test-coverage.yaml` |
 
 ## Required secrets
@@ -125,12 +126,16 @@ renv restores enable pak with `RENV_CONFIG_PAK_ENABLED=true`; package dependency
 workflows already use pak through setup-r-dependencies.
 
 For local development, merge `templates/config/.Rprofile` into the repo's existing
-`.Rprofile`, before `source("renv/activate.R")` if present. It sets the CRAN entry
-while preserving other named repositories, and enables `renv.config.pak.enabled`.
+`.Rprofile`, preserving other project startup code. For renv projects, copy
+`setup.R` too and replace the existing `source("renv/activate.R")` line with the
+template's offline loader. Keep `renv/activate.R` for the explicit setup command.
+The template sets CRAN while preserving other named repositories, enables pak,
+and loads only a library prepared by setup for the current OS and R minor version.
 Use the portable P3M URL in shared configuration, rather than copying a Linux
 distribution-specific binary URL or a machine's library/cache paths. Existing
-lockfile repositories and pinned versions still apply during renv restore; this
-change does not rewrite lockfiles or force an update to their packages. See the
+lockfile repositories and pinned versions still apply during renv restore. The CI
+repository defaults do not rewrite lockfiles; the explicit setup command below
+repairs platform metadata while preserving versions. See the
 [renv configuration reference](https://rstudio.github.io/renv/reference/config.html)
 for pak configuration and option precedence.
 
@@ -138,3 +143,21 @@ Downstream repos receive CI changes by bumping their baseline workflow/composite
 SHA pins after merge. Local defaults require merging the copied template too;
 CI deliberately skips project `.Rprofile` files. No downstream files are changed
 by updating baseline alone.
+
+For a renv project that needs portable setup without capability packs, copy
+`templates/config/setup.R` to the project root. Run `Rscript --vanilla setup.R`
+on each new machine (Windows, macOS, or Linux). It installs a pinned boosterpak
+commit into the project library and calls `boosterpak::restore_project()`;
+this repairs existing Linux PPM lockfile metadata before restoring exact
+versions. No `boosters.toml`, packs, or startup attachments are created. Keep
+`renv/activate.R` and `renv.lock` committed. The script pins the setup tool
+independently from the application's lockfile; update that SHA deliberately.
+Setup writes machine-local activation data under `renv/local/`; keep that
+directory gitignored. Before setup, opening a clone only prints the setup command.
+After setup, opening it loads the prepared library without bootstrapping renv or
+restoring packages. A different OS or R minor version requires setup again.
+
+After deliberate dependency changes, use `boosterpak::snapshot_project()` to
+save a portable lockfile. A plain `renv::snapshot()` bypasses cleanup. Existing
+reusable renv CI workflows still use setup-renv and expect the committed
+lockfile to be portable; the setup script does not change their restore path.

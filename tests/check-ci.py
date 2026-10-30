@@ -174,3 +174,25 @@ stopifnot(
     result = run(['Rscript', '--vanilla', str(script)])
     assert result.returncode == 0, (result.stdout, result.stderr)
 print('P3M, renv/pak, and cross-platform shell regression checks passed')
+
+# Opening a fresh clone must not invoke renv's downloading auto-loader.
+with tempfile.TemporaryDirectory() as tmp:
+    root = Path(tmp)
+    (root / 'renv').mkdir()
+    (root / 'renv.lock').write_text('{}')
+    (root / 'renv/activate.R').write_text('stop("auto-loader must not run")')
+    script = root / 'check-startup.R'
+    script.write_text('''source(commandArgs(TRUE)[[1]])
+stopifnot(!"renv" %in% loadedNamespaces())
+dir.create("renv/local/fake/renv", recursive = TRUE)
+writeLines("Package: renv", "renv/local/fake/renv/DESCRIPTION")
+r_minor <- paste(R.version$major, strsplit(R.version$minor, ".", fixed = TRUE)[[1L]][1L], sep = ".")
+writeLines(c("renv/local/fake", "another-platform", r_minor), "renv/local/startup")
+source(commandArgs(TRUE)[[1]])
+stopifnot(!"renv" %in% loadedNamespaces())
+''')
+    result = run(['Rscript', '--vanilla', str(script),
+                  str(Path('templates/config/.Rprofile').resolve())], cwd=tmp)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert 'Rscript --vanilla setup.R' in result.stderr
+print('Fresh-clone offline startup check passed')
