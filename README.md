@@ -150,7 +150,11 @@ For a renv project that needs portable setup without capability packs, copy
 on each new machine (Windows, macOS, or Linux). It installs a pinned boosterpak
 commit into the project library and calls `boosterpak::restore_project()`;
 this repairs existing Linux PPM lockfile metadata before restoring exact
-versions. No `boosters.toml`, packs, or startup attachments are created. Keep
+versions. For compiled pins absent from the latest binary index, restore adds a
+dated P3M snapshot for that operation. To prohibit a source build for a heavy
+package, customize the call as
+`boosterpak::restore_project(require_binaries = "duckdb")`.
+No `boosters.toml`, packs, or startup attachments are created. Keep
 `renv/activate.R` and `renv.lock` committed. The script pins the setup tool
 independently from the application's lockfile; update that SHA deliberately.
 Setup writes machine-local activation data under `renv/local/`; keep that
