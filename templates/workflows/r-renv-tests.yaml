@@ -24,3 +24,6 @@ jobs:
     #   air-format-check: true
     #   shiny-smoke: true
     #   shiny-run-command: 'shiny::runApp("inst/app", port=3838, launch.browser=FALSE)'
+
+# After copying templates/config/setup.R and .Rprofile into a renv project,
+# add portable-setup: true to the calling job's with: block.

@@ -143,3 +143,73 @@ with tempfile.TemporaryDirectory() as tmp:
     assert result.returncode != 0
     assert git('ls-remote', 'origin', 'refs/heads/main').split()[0] == prepared
 print('Release ref and credential regression checks passed')
+
+# Repository defaults must reach every R setup and renv restore on every OS.
+for path in [*Path('.github/workflows').glob('*.yaml'), Path('.github/actions/r-setup/action.yaml')]:
+    config = yaml.safe_load(path.read_text())
+    jobs = config.get('jobs', {'composite': {'steps': config.get('runs', {}).get('steps', [])}})
+    for job in jobs.values():
+        for step in job.get('steps', []):
+            uses = step.get('uses', '')
+            if uses.startswith('r-lib/actions/setup-r@'):
+                assert step['with']['cran'] == 'https://p3m.dev/cran/latest', path
+                assert step['with']['use-public-rspm'] is True, path
+                assert step['with']['extra-repositories'] == 'https://cloud.r-project.org', path
+            if uses.startswith('r-lib/actions/setup-renv@'):
+                env = {**job.get('env', {}), **step.get('env', {})}
+                assert env['RENV_CONFIG_PAK_ENABLED'] == 'true', path
+assert next(s for s in check['jobs']['r-cmd-check']['steps']
+            if s['name'] == 'Disable parallel tests on Windows')['shell'] == 'bash'
+
+# Source the actual copied profile, preserving an additional repository.
+with tempfile.TemporaryDirectory() as tmp:
+    script = Path(tmp) / 'check-profile.R'
+    script.write_text('''options(repos = c(CRAN = "https://cloud.r-project.org", extra = "https://example.org"))
+source("templates/config/.Rprofile")
+stopifnot(
+  identical(getOption("repos")[["CRAN"]], "https://p3m.dev/cran/latest"),
+  identical(getOption("repos")[["extra"]], "https://example.org"),
+  identical(getOption("renv.config.pak.enabled"), TRUE)
+)
+''')
+    result = run(['Rscript', '--vanilla', str(script)])
+    assert result.returncode == 0, (result.stdout, result.stderr)
+print('P3M, renv/pak, and cross-platform shell regression checks passed')
+
+# Opening a fresh clone must not invoke renv's downloading auto-loader.
+with tempfile.TemporaryDirectory() as tmp:
+    root = Path(tmp)
+    (root / 'renv').mkdir()
+    (root / 'renv.lock').write_text('{}')
+    (root / 'renv/activate.R').write_text('stop("auto-loader must not run")')
+    script = root / 'check-startup.R'
+    script.write_text('''source(commandArgs(TRUE)[[1]])
+stopifnot(!"renv" %in% loadedNamespaces())
+dir.create("renv/local/fake/renv", recursive = TRUE)
+writeLines("Package: renv", "renv/local/fake/renv/DESCRIPTION")
+r_minor <- paste(R.version$major, strsplit(R.version$minor, ".", fixed = TRUE)[[1L]][1L], sep = ".")
+writeLines(c("renv/local/fake", "another-platform", r_minor), "renv/local/startup")
+source(commandArgs(TRUE)[[1]])
+stopifnot(!"renv" %in% loadedNamespaces())
+''')
+    result = run(['Rscript', '--vanilla', str(script),
+                  str(Path('templates/config/.Rprofile').resolve())], cwd=tmp)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert 'Rscript --vanilla setup.R' in result.stderr
+print('Fresh-clone offline startup check passed')
+
+# The project setup path is opt-in; callers without templates retain setup-renv.
+for filename in ['r-renv-tests.yaml', 'quarto-pages.yaml']:
+    config = yaml.safe_load((Path('.github/workflows') / filename).read_text())
+    inputs = config[True]['workflow_call']['inputs']
+    assert inputs['portable-setup']['default'] is False
+    jobs = config['jobs']
+    steps = next(job['steps'] for job in jobs.values() if any(
+        s.get('uses', '').startswith('r-lib/actions/setup-renv@') for s in job.get('steps', [])))
+    legacy = next(s for s in steps if s.get('uses', '').startswith('r-lib/actions/setup-renv@'))
+    portable = next(s for s in steps if s['name'] == 'Restore portable project environment')
+    assert '!inputs.portable-setup' in legacy['if']
+    assert 'inputs.portable-setup' in portable['if']
+    assert portable['shell'] == 'Rscript --vanilla {0}'
+    assert 'R_LIBS_USER=' in portable['run']
+print('Opt-in portable CI restore checks passed')
