@@ -213,3 +213,97 @@ for filename in ['r-renv-tests.yaml', 'quarto-pages.yaml']:
     assert portable['shell'] == 'Rscript --vanilla {0}'
     assert 'R_LIBS_USER=' in portable['run']
 print('Opt-in portable CI restore checks passed')
+
+# Releases on merge: the version step reads real commit history and tags.
+self_release = yaml.safe_load(Path('.github/workflows/self-release.yaml').read_text())
+jobs = self_release['jobs']
+assert jobs['release']['needs'] == 'checks'
+assert jobs['release']['if'] == "github.ref == 'refs/heads/main'"
+assert jobs['release']['permissions'] == {'contents': 'write'}
+assert self_release['permissions'] == {'contents': 'read'}
+assert 'secrets.RELEASE_PAT' not in str(self_release)
+release_steps = {s['name']: s for s in jobs['release']['steps']}
+assert release_steps['Checkout']['with']['persist-credentials'] is False
+version_script = release_steps['Decide version']['run']
+assert release_steps['Publish release']['if'] == "${{ steps.version.outputs.tag != '' && !inputs.dry-run }}"
+
+with tempfile.TemporaryDirectory() as tmp:
+    repo = Path(tmp) / 'repo'
+    repo.mkdir()
+
+    def git(*args):
+        result = run(['git', *args], cwd=repo)
+        assert result.returncode == 0, result.stderr
+        return result.stdout.strip()
+
+    def commit(message, *files):
+        for name in files:
+            path = repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(path.read_text() + 'x\n' if path.exists() else 'x\n')
+        git('add', '-A')
+        git('commit', '--allow-empty', '-qm', message)
+
+    def decide(bump='auto'):
+        output = Path(tmp) / 'output'
+        output.write_text('')
+        env = dict(os.environ, BUMP=bump, GITHUB_OUTPUT=str(output), GITHUB_SHA=git('rev-parse', 'HEAD'))
+        result = run(['bash', '-eu', '-o', 'pipefail', '-c', version_script], cwd=repo, env=env)
+        return result, output.read_text().strip().removeprefix('tag=')
+
+    def expect(tag, bump='auto', code=0):
+        result, got = decide(bump)
+        assert (result.returncode, got) == (code, tag), (tag, bump, result.stdout, result.stderr)
+        return result
+
+    git('init', '-qb', 'main')
+    git('config', 'user.email', 'test@example.org')
+    git('config', 'user.name', 'Test Author')
+    commit('feat: first')
+    expect('', code=1)  # No release tag to count from.
+    git('tag', 'v1.3.0')
+    expect('')  # The tag already points at HEAD.
+    commit('docs: notes')
+    commit('chore: housekeeping')
+    commit('ci: pin caller stubs to v1.3.0', 'templates/workflows/a.yaml')
+    commit('ci: self checks', '.github/workflows/self-lint.yaml', '.github/workflows/self-release.yaml')
+    commit('Update README.md')
+    result = expect('')  # Nothing here ships.
+    assert 'Ignoring non-conventional subject: Update README.md' in result.stderr + result.stdout
+    commit('ci: bump a callee', '.github/workflows/r-cmd-check.yaml')
+    expect('v1.3.1')
+    expect('v1.3.1', 'patch')
+    expect('v1.4.0', 'minor')
+    expect('v2.0.0', 'major')
+    expect('', 'bogus', code=1)
+    commit('ci: bump a composite action', '.github/actions/r-setup/action.yaml')
+    expect('v1.3.1')
+    commit('fix(api): squashed fix (#9)\n\n* feat!: folded line is not a subject\n* feat: another')
+    expect('v1.3.1')  # Body lines never decide the bump.
+    commit('feat: new input')
+    expect('v1.4.0')
+    git('tag', 'v1.4.0')
+    git('tag', 'v1.4.1', 'v1.3.0')  # A stray tag elsewhere must not be reused.
+    commit('fix: after the tag')
+    expect('', code=1)
+    git('tag', '-d', 'v1.4.1')
+    git('reset', '-q', '--hard', 'v1.4.0')
+    commit('feat(api)!: drop an input')
+    result = expect('')
+    assert 'bump=major' in result.stdout
+    expect('v2.0.0', 'major')
+    git('reset', '-q', '--hard', 'v1.4.0')
+    commit('fix: recovered\n\nBREAKING CHANGE: removes a default')
+    result = expect('')
+    assert 'bump=major' in result.stdout
+    git('reset', '-q', '--hard', 'v1.4.0')
+    commit('perf: faster')
+    expect('v1.4.1')
+    commit('Merge pull request #4 from x/y')  # Merge commits are skipped.
+    git('checkout', '-q', 'v1.4.0')
+    git('checkout', '-qb', 'side')
+    commit('feat: on a side branch')
+    git('checkout', '-q', 'main')
+    git('merge', '-q', '--no-ff', '-m', 'Merge pull request #5 from x/side', 'side')
+    expect('v1.5.0')
+print('Release version regression checks passed')

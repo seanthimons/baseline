@@ -15,7 +15,7 @@ This repo must stay public. Public caller repos cannot call reusable workflows f
 
 ```
 .github/
-  workflows/          reusable workflows (workflow_call), plus self-lint.yaml for this repo
+  workflows/          reusable workflows (workflow_call), plus the self-*.yaml workflows that run on this repo
   workflows/README.md one paragraph per reusable workflow: inputs, secrets, permissions
   actions/r-setup/    composite: pandoc, R, optional Quarto/Air, deps or renv, profile isolation
   actions/pkg-metadata/ composite: package, version, short SHA from DESCRIPTION
@@ -49,6 +49,10 @@ The composite actions are for project-specific workflows in caller repos (for ex
 - Releases are tagged `v1.x.y`. Patch and minor releases never break callers.
 - Removing or renaming an input, changing a default in a breaking way, or adding a required secret requires a new major tag (`v2.0.0`).
 - Callers pin a full SHA with a `# v1.x.y` comment, never a branch or bare tag.
+- `self-release.yaml` tags and publishes a release on each merge to `main` that ships a change, after Self lint and the workflow regression checks pass. It reads the Conventional Commit subjects since the last tag: `feat` is a minor release; `fix`, `perf`, `refactor`, `build`, and `ci` commits that change a callee or composite action are patches. `docs`, `chore`, `test`, `style`, other `ci` commits (templates, Dependabot config, `self-*` workflows), and subjects that are not Conventional Commits do not release. Direct pushes to `main` by an admin release the same way.
+- A breaking change (`!` in the subject or a `BREAKING CHANGE:` footer) does not release on its own, and neither do later merges until it ships. Run the **Release** workflow from `main` with `bump: major` and `dry-run` off. The same dispatch forces any other bump.
+- Make `Commit Lint / Conventional Commits` a required check on `main`, because releases trust the PR title that squash-merge writes to `main`.
+- Release callers pin by SHA, so the `# v1.x.y` comments in `templates/workflows/` are updated by hand in a `ci:` PR after a release.
 - `templates/config/dependabot.yml` covers the `github-actions` ecosystem, which includes `uses: seanthimons/baseline/...@<sha>` refs. Dependabot opens grouped `ci:` PRs that bump both third-party pins and baseline pins.
 - Every third-party action in this repo is pinned by full SHA with a version comment. This repo's own `.github/dependabot.yml` keeps those pins current.
 
