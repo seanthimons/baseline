@@ -1,0 +1,18 @@
+# Lint baseline's own PR titles, commit subjects, and branch names with the local
+# reusable workflow. Releases read these subjects, so make this a required check.
+name: Self commit lint
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-commit-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  commit-lint:
+    name: Commit Lint
+    uses: ./.github/workflows/commit-lint.yaml

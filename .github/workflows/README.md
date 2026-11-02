@@ -1,6 +1,6 @@
 # Reusable workflows
 
-Every workflow here except `self-lint.yaml` is a reusable workflow (`on: workflow_call`). Callers copy a stub from `templates/workflows/`, pin this repo by full SHA with a `# v1.x.y` comment, and own triggers, path filters, and concurrency. Inputs listed below are a summary; see the file header and `on.workflow_call.inputs` block of each file for the authoritative input list and defaults.
+Every workflow here except the `self-*.yaml` ones is a reusable workflow (`on: workflow_call`). Callers copy a stub from `templates/workflows/`, pin this repo by full SHA with a `# v1.x.y` comment, and own triggers, path filters, and concurrency. Inputs listed below are a summary; see the file header and `on.workflow_call.inputs` block of each file for the authoritative input list and defaults.
 
 All callees declare top-level `permissions: contents: read` and set `timeout-minutes` on every job. A callee cannot hold more permissions than the calling job grants, so the "Caller permissions" below go on the caller's job, not its top level. Secrets are passed explicitly by name; never use `secrets: inherit`.
 
@@ -60,7 +60,15 @@ Runs actionlint and zizmor over the caller's `.github/workflows/`. zizmor flags 
 
 ## `self-lint.yaml`
 
-Not reusable. Runs `lint-workflows.yaml` against this repository on pushes to `main` and on pull requests that touch `.github/**`.
+Not reusable by other repos. Runs `lint-workflows.yaml` and the workflow regression tests against this repository on pull requests that touch `.github/**` or `tests/**`. `self-release.yaml` calls it on every push to `main`.
+
+## `self-commit-lint.yaml`
+
+Not reusable by other repos. Runs `commit-lint.yaml` on every pull request to this repository, so PR titles and commit subjects stay readable by `self-release.yaml`.
+
+## `self-release.yaml`
+
+Not reusable by other repos. On each push to `main` it waits for `self-lint.yaml`, picks the next `vX.Y.Z` from the Conventional Commit subjects since the last tag, and publishes a GitHub release with generated notes using `GITHUB_TOKEN` (no PAT, no branch push). Manual dispatch takes `bump` (`auto`, `patch`, `minor`, `major`) and `dry-run` (default true) and only runs on `main`. See the Versioning section of the README for which commit types release.
 
 ## Not here
 

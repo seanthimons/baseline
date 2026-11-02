@@ -1,0 +1,142 @@
+# Release baseline itself: tag and publish a vX.Y.Z GitHub release for the merges to
+# main since the last tag. Not reusable; R packages use release-r-package.yaml.
+# Bump comes from Conventional Commit subjects: feat -> minor; fix, perf, refactor,
+# build, and ci commits that change a callee or composite action -> patch. Other
+# types do not release. A breaking change never releases on its own: dispatch with
+# bump=major. Uses GITHUB_TOKEN only; no branch is pushed.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: auto reads commits since the last tag; otherwise force this bump
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      dry-run:
+        description: Print the next version without publishing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Checks
+    uses: ./.github/workflows/self-lint.yaml
+
+  release:
+    name: Release
+    needs: checks
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Decide version
+        id: version
+        shell: bash
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$GITHUB_SHA" || true)
+          if [ -z "$last" ]; then
+            echo "::error::No v* tag is reachable from $GITHUB_SHA; cut the first release by hand"
+            exit 1
+          fi
+          if ! [[ $last =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Latest tag $last is not vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          major=${BASH_REMATCH[1]}
+          minor=${BASH_REMATCH[2]}
+          patch=${BASH_REMATCH[3]}
+          if [ "$(git rev-parse "$last^{commit}")" = "$GITHUB_SHA" ]; then
+            echo "$last already points at $GITHUB_SHA; nothing to release"
+            exit 0
+          fi
+
+          git rev-list "$last..$GITHUB_SHA" > /dev/null
+
+          rank() {
+            case $1 in minor) echo 2 ;; patch) echo 1 ;; *) echo 0 ;; esac
+          }
+          raise() {
+            if [ "$(rank "$1")" -gt "$(rank "$bump")" ]; then bump=$1; fi
+          }
+          bump=none
+          breaking=false
+          type_re='^([a-z]+)(\([^)]*\))?(!)?: '
+          # Types come from each non-merge commit subject only: squash bodies list
+          # the folded commits, and a body line must not decide the release.
+          while IFS=$'\t' read -r sha subject; do
+            if [[ $subject =~ $type_re ]]; then
+              if [ -n "${BASH_REMATCH[3]}" ]; then breaking=true; fi
+              case ${BASH_REMATCH[1]} in
+                feat) raise minor ;;
+                fix | perf | refactor | build) raise patch ;;
+                ci)
+                  # CI bumps ship only when they touch a callee or composite action.
+                  changed=$(git diff-tree --no-commit-id --name-only -r "$sha" -- \
+                    .github/workflows .github/actions ':!.github/workflows/self-*' ':!.github/workflows/*.md')
+                  if [ -n "$changed" ]; then raise patch; fi
+                  ;;
+              esac
+            else
+              echo "::warning::Ignoring non-conventional subject: $subject"
+            fi
+          done < <(git log --no-merges --format='%H%x09%s' "$last..$GITHUB_SHA")
+          messages=$(git log --no-merges --format=%B "$last..$GITHUB_SHA")
+          if grep -Eq '^BREAKING[ -]CHANGE:' <<< "$messages"; then breaking=true; fi
+
+          case ${BUMP:-auto} in
+            auto)
+              if [ "$breaking" = true ]; then
+                echo "::warning::Breaking change since $last; run this workflow with bump=major to release it"
+                exit 0
+              fi
+              level=$bump
+              ;;
+            patch | minor | major) level=$BUMP ;;
+            *)
+              echo "::error::Unknown bump: $BUMP"
+              exit 1
+              ;;
+          esac
+          if [ "$level" = none ]; then
+            echo "No releasable commits since $last"
+            exit 0
+          fi
+          case $level in
+            major) tag=v$((major + 1)).0.0 ;;
+            minor) tag=v$major.$((minor + 1)).0 ;;
+            patch) tag=v$major.$minor.$((patch + 1)) ;;
+          esac
+          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+            echo "::error::Tag $tag already exists but does not point at $GITHUB_SHA"
+            exit 1
+          fi
+          echo "Next release: $tag (previous $last, $level bump)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        if: ${{ steps.version.outputs.tag != '' && !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes

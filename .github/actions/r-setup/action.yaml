@@ -51,7 +51,7 @@ runs:
 
     - name: Set up Air
       if: inputs.air == 'true'
-      uses: posit-dev/setup-air@cf390573ff4fe0f198f35df3a642b1409328d859 # v1
+      uses: posit-dev/setup-air@cf390573ff4fe0f198f35df3a642b1409328d859 # v1.0.1
 
     - name: Restore renv library
       if: inputs.use-renv == 'true' && inputs.portable-setup != 'true'
