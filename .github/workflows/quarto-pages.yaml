@@ -16,6 +16,10 @@ on:
         description: Quarto output directory to publish
         type: string
         default: _site
+      portable-setup:
+        description: Restore with the committed setup.R and offline .Rprofile templates when needs-r is true.
+        type: boolean
+        default: false
       needs-r:
         description: Install R (and restore renv.lock if present) before rendering
         type: boolean
@@ -29,6 +33,9 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      GITHUB_PAT: ${{ github.token }}
+      RENV_CONFIG_PAK_ENABLED: "true"
     permissions:
       contents: read
     steps:
@@ -53,11 +60,22 @@ jobs:
         if: ${{ inputs.needs-r }}
         uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
+          r-version: ${{ inputs.portable-setup && 'renv' || 'release' }}
+          cran: https://p3m.dev/cran/latest
+          extra-repositories: https://cloud.r-project.org
           use-public-rspm: true
 
       - name: Setup renv
-        if: ${{ inputs.needs-r && hashFiles('renv.lock') != '' }}
+        if: ${{ inputs.needs-r && !inputs.portable-setup && hashFiles('renv.lock') != '' }}
         uses: r-lib/actions/setup-renv@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Restore portable project environment
+        if: inputs.needs-r && inputs.portable-setup
+        shell: Rscript --vanilla {0}
+        run: |
+          source("setup.R")
+          cat("R_LIBS_USER=", renv::paths$library(project = getwd()), "\n",
+              file = Sys.getenv("GITHUB_ENV"), append = TRUE, sep = "")
 
       - name: Setup Quarto
         uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0

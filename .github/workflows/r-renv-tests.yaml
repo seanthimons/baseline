@@ -10,6 +10,10 @@ on:
       os:
         type: string
         default: ubuntu-latest
+      portable-setup:
+        description: Restore with the committed setup.R and offline .Rprofile templates.
+        type: boolean
+        default: false
       test-dir:
         type: string
         default: tests/testthat
@@ -38,6 +42,7 @@ jobs:
       GITHUB_PAT: ${{ github.token }}
       R_PROFILE_USER: /dev/null
       RENV_CONFIG_AUTOLOADER_ENABLED: 'false'
+      RENV_CONFIG_PAK_ENABLED: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -60,10 +65,21 @@ jobs:
         uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
           r-version: renv
+          cran: https://p3m.dev/cran/latest
+          extra-repositories: https://cloud.r-project.org
           use-public-rspm: true
 
       - name: Restore renv environment
+        if: ${{ !inputs.portable-setup }}
         uses: r-lib/actions/setup-renv@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Restore portable project environment
+        if: inputs.portable-setup
+        shell: Rscript --vanilla {0}
+        run: |
+          source("setup.R")
+          cat("R_LIBS_USER=", renv::paths$library(project = getwd()), "\n",
+              file = Sys.getenv("GITHUB_ENV"), append = TRUE, sep = "")
 
       # Autoloader is disabled at job level, so each R step loads the project library explicitly.
       - name: Run tests
