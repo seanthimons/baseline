@@ -23,11 +23,11 @@ Reusable-workflow jobs report as `caller-job / callee-job (matrix)`, for example
 
 ## Phase 0: create baseline
 
-- [ ] Create the public repo `seanthimons/baseline`.
-- [ ] Add `.github/workflows/*.yaml` (workflow_call), `.github/actions/r-setup` and `.github/actions/pkg-metadata`, `templates/` (caller stubs and shared config), `examples/`, and `.github/workflows/README.md`.
-- [ ] Add baseline's own `.github/dependabot.yml` and `self-lint.yaml` (actionlint and zizmor on itself). Confirm self-lint passes.
-- [ ] Tag `v1.0.0`. Record its full SHA for callers.
-- [ ] Confirm Settings > Actions > General allows other repos to use this repo's workflows (automatic for a public repo).
+- [x] Create the public repo `seanthimons/baseline`.
+- [x] Add `.github/workflows/*.yaml` (workflow_call), `.github/actions/r-setup` and `.github/actions/pkg-metadata`, `templates/` (caller stubs and shared config), `examples/`, and `.github/workflows/README.md`.
+- [x] Add baseline's own `.github/dependabot.yml` and `self-lint.yaml` (actionlint and zizmor on itself). Confirm self-lint passes.
+- [x] Tag `v1.0.0`. Record its full SHA for callers.
+- [x] Confirm Settings > Actions > General allows other repos to use this repo's workflows (automatic for a public repo).
 
 ## Phase 1: hygiene everywhere (low risk)
 

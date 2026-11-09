@@ -25,7 +25,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    uses: seanthimons/baseline/.github/workflows/pkgdown.yaml@c99a0a60eed152a08d1e34841d45573fef812af2 # v1.2.0
+    uses: seanthimons/baseline/.github/workflows/pkgdown.yaml@248ad7ec1315ff863abc1d44bf5fe1554fb64f72 # v1.4.1
     # with:
     #   quarto: true
     #   pre-build-script: dev/pre_build.R
