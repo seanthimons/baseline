@@ -10,6 +10,12 @@ project types (`IF SHINY`, `IF PACKAGE`, `IF PIPELINE`), and replace the
   track them (`!/AGENTS.md`, `!/CLAUDE.md` in `.gitignore`). Sensitive repo:
   `templates/config/.gitignore` blocks all root dot-directories and root
   markdown without naming them, so the files stay local and unlisted.
+- Ownership: pick one. User-owned (default): keep the Workflow scope bullets
+  marked `IF USER-OWNED` and delete the `Ownership` section. Agent-owned: keep
+  the `Ownership` section and delete those bullets. Do not keep both; a scope
+  rule next to an ownership statement weakens it. Until a project makes this
+  choice (both modes present, as in an unadopted template), user-owned applies
+  and the `Ownership` section is inactive.
 - Save both as UTF-8 without BOM, LF line endings. No `@` imports here (not every agent
   expands them).
 - Where source rules conflicted, this file picks one and records the loser in
@@ -73,8 +79,9 @@ them before writing new ones. -->
 - State assumptions, uncertainty, and tradeoffs. If several readings are
   plausible and the wrong one is risky, ask before changing files.
 - Push back when an approach is more complex than the problem needs.
-- Keep changes scoped to the request. No broad refactors, generated churn,
-  speculative features, or unrelated formatting. Ask before expanding scope.
+- IF USER-OWNED: keep changes scoped to the request. No broad refactors,
+  generated churn, speculative features, or unrelated formatting. Ask before
+  expanding scope.
 - Search for existing helpers (`R/`, `dev/`, `scripts/`, shared utility
   files) before writing new ones. Prefer existing patterns over new
   abstractions.
@@ -82,7 +89,7 @@ them before writing new ones. -->
   configurability, or error handling for out-of-scope cases.
 - Match existing style, even where you would choose differently.
 - Remove imports, variables, functions, or files your change made unused.
-  Leave pre-existing dead code; mention it instead.
+- IF USER-OWNED: leave pre-existing dead code; mention it instead.
 - Code should be simple, durable, defensible, deterministic, and easy to
   verify.
 - Before using a name, read the source: field names, function signatures,
@@ -112,6 +119,39 @@ and gets tests. -->
   build.
 - If a check cannot run (credentials, services, packages), say so and report
   the closest validation performed.
+- Before committing, read `git diff HEAD` against the request and its
+  out-of-scope notes. Remove changes you made outside the request (agent-owned:
+  changes the request or those notes exclude, or that need approval and lack
+  it); report other local changes, do not touch them. An agent with a separate reviewer may use it for
+  this check instead.
+
+## Ownership (IF AGENT-OWNED)
+
+<!-- Delete this section for user-owned repos. Inactive until a project keeps
+it and deletes the IF USER-OWNED bullets (see the preamble). Keep the first
+sentence as written; it is the documented wording. -->
+
+This codebase is yours: what it's for and how it's built are your call, and
+you'll keep building on it. Findings are yours too: fix every problem you
+find, including review findings and problems in code you touch, in the same
+PR (if any). Merge repeated code instead of adding to it. When you are asked
+only to review, scan, or plan, follow the Communication rules instead of
+fixing.
+
+- Ask first for: changes to existing user-visible behavior, public APIs, or
+  data formats; deleting data; anything outside the repo (the Session end push
+  and tracker steps are excepted). Report a finding that needs one of these
+  instead of fixing it.
+- Do not change protected paths unless the task requires it: committed data,
+  fixtures, snapshots, cassettes, generated code and docs, lockfiles
+  (`renv.lock`), `.gitleaks.toml` allowlists. <!-- FILL: add repo-specific paths -->
+- Limit review loops to two fix-and-review rounds per task, then report what
+  remains and ask.
+- Small changes get dropped from summaries. List every change beyond the
+  request in your final message and the PR description (if any), one line each,
+  including the small ones.
+- Commits stay small, one reason each, even when one PR carries several
+  fixes.
 
 ## Git
 
