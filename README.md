@@ -11,6 +11,31 @@ The reasons for this layout and the findings behind it are in [`docs/audit-2026-
 
 This repo must stay public. Public caller repos cannot call reusable workflows from a private repo.
 
+## Scope and boundary with boosterpak
+
+baseline and [boosterpak](https://github.com/seanthimons/boosterpak) are separate on purpose. The boundary is where the code runs, not the topic.
+
+- **baseline's consumer is a repository**: a GitHub runner, or static files copied into a repo. baseline owns policy and wiring: workflows, action pins, and static config templates.
+- **boosterpak's consumer is an R session inside a project.** boosterpak owns mechanism: anything that needs R logic, and R unit tests, to be correct. Its purpose is to smooth the rough edges of working in R: binaries versus compiling, OS and R version differences, portable restores. Packs are one feature of that.
+
+Two rules keep the line sharp:
+
+- **The laptop test.** If an R fix in baseline would also be needed on a laptop, it belongs in boosterpak. A CI runner is just another new machine.
+- **Values, not branches.** baseline may copy a value from boosterpak (for example the P3M URL) but never a branch of logic (for example "if Linux, rewrite to manylinux").
+
+boosterpak will generate the portable setup files, the way renv generates `renv/activate.R`, and baseline will stop authoring them. Two templates are exceptions to the rules above today, because baseline currently authors them: `templates/config/setup.R` (platform URL rewriting and a pinned boosterpak SHA) and the offline loader in `templates/config/.Rprofile`. They are described under [R repositories and cross-platform installs](#r-repositories-and-cross-platform-installs) and are not to be extended.
+
+### The contract
+
+This is everything baseline's CI needs from boosterpak, and everything baseline may know about it:
+
+1. `setup.R` is committed at the project root, and running it restores the locked library on Windows, macOS and Linux.
+2. After `source("setup.R")` in a vanilla session, `renv::paths$library(project = getwd())` works.
+3. Opening the project before setup installs nothing.
+4. baseline reads nothing else from boosterpak: no marker files, no internals, and no knowledge of packs or `boosters.toml`.
+
+The `portable-setup: true` input of `r-renv-tests.yaml`, `quarto-pages.yaml` and the `r-setup` composite relies on points 1 and 2 only: it runs `source("setup.R")` and reads `renv::paths$library()`. Point 3 is a guarantee for people opening a clone; the CI setup step runs with `--vanilla`, so the project profile is never read before setup. Point 4 limits what baseline's workflows and templates may do.
+
 ## Layout
 
 ```
