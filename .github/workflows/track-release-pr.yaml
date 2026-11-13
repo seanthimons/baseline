@@ -116,9 +116,11 @@ jobs:
             echo "::error::Pins matched but nothing changed"
             exit 1
           fi
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          {
+            echo "changed=true"
+            echo "tag=${tag}"
+            echo "current=${current}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Open or update the bump PR
         if: steps.bump.outputs.changed == 'true'
@@ -181,6 +183,7 @@ jobs:
             git push --force-with-lease="refs/heads/${branch}:${expected}" origin "HEAD:refs/heads/${branch}"
           fi
 
+          # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
           {
             printf 'Automated by `track-release-pr`.\n\n'
             printf '%s published **%s** ([release notes](https://github.com/%s/releases/tag/%s)); this repo was on `%s`.\n' \
