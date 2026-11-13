@@ -2,9 +2,9 @@ name: Gitleaks
 
 on:
   push:
-    branches: [main]
+    # Add other long-lived branches (for example integration) here.
+    branches: [main, master]
   pull_request:
-    branches: [main]
   schedule:
     # Change the minute per repo to stagger scheduled runs.
     - cron: "17 6 * * 1"

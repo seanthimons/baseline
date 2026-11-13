@@ -44,7 +44,7 @@ Fails a PR until user docs are confirmed. It passes when the PR body has a ticke
 
 ## `gitleaks.yaml`
 
-Scans full git history (`fetch-depth: 0`) with gitleaks-action and reads the caller's repo-root `.gitleaks.toml`. Bot commits are scanned too; there is no actor skip. Inputs: none. Secrets: `GITLEAKS_LICENSE` (optional; only for organization-owned repos). Caller permissions: `contents: read`. Keep the weekly `schedule` in the caller and change the cron minute per repo to stagger runs. See file header for the authoritative input list.
+Scans full git history (`fetch-depth: 0`) with gitleaks-action and reads the caller's repo-root `.gitleaks.toml`. Bot commits are scanned too; there is no actor skip. Inputs: none. Secrets: `GITLEAKS_LICENSE` (optional; only for organization-owned repos). Caller permissions: `contents: read`. The caller template scans pushes to `main` and `master` and every pull request; add other long-lived branches (for example `integration`) to `push.branches`. Keep the weekly `schedule` in the caller and change the cron minute per repo to stagger runs. See file header for the authoritative input list.
 
 ## `quarto-pages.yaml`
 
