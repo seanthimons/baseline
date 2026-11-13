@@ -49,11 +49,11 @@ The composite actions are for project-specific workflows in caller repos (for ex
 - Releases are tagged `vX.Y.Z`. Patch and minor releases never break callers.
 - Removing or renaming an input, changing a default in a breaking way, adding a required secret, or requiring a permission that existing callers do not already grant requires a new major tag (for example `v2.0.0`).
 - Callers pin a full SHA with a `# vX.Y.Z` comment, never a branch or bare tag.
-- `self-release.yaml` tags and publishes a release on each merge to `main` that ships a change, after Self lint and the workflow regression checks pass. It reads the Conventional Commit subjects since the last tag: `feat` is a minor release; `fix`, `perf`, `refactor`, `build`, and `ci` commits that change a callee or composite action are patches. `docs`, `chore`, `test`, `style`, other `ci` commits (templates, Dependabot config, `self-*` workflows), and subjects that are not Conventional Commits do not release. Direct pushes to `main` by an admin release the same way.
+- `self-release.yaml` tags and publishes a release on each merge to `main` that ships a change, after Self lint and the workflow regression checks pass, then sends `repository_dispatch` `baseline-release` to the repos in `DOWNSTREAM_REPOS` (see "Release propagation"). It reads the Conventional Commit subjects since the last tag: `feat` is a minor release; `fix`, `perf`, `refactor`, `build`, and `ci` commits that change a callee or composite action are patches. `docs`, `chore`, `test`, `style`, other `ci` commits (templates, Dependabot config, `self-*` workflows), and subjects that are not Conventional Commits do not release. Direct pushes to `main` by an admin release the same way.
 - A breaking change (`!` in the subject or a `BREAKING CHANGE:` footer) does not release on its own, and neither do later merges until it ships. Run the **Release** workflow from `main` with `bump: major` and `dry-run` off. The same dispatch forces any other bump.
 - Make `Commit Lint / Conventional Commits` a required check on `main`, because releases trust the PR title that squash-merge writes to `main`.
 - Release callers pin by SHA, so the `# vX.Y.Z` comments in `templates/workflows/` are updated by hand in a `ci:` PR after a release.
-- `templates/config/dependabot.yml` covers the `github-actions` ecosystem, which includes `uses: seanthimons/baseline/...@<sha>` refs. Dependabot opens grouped `ci:` PRs that bump both third-party pins and baseline pins.
+- `templates/config/dependabot.yml` covers the `github-actions` ecosystem, which includes `uses: seanthimons/baseline/...@<sha>` refs. By default Dependabot opens grouped `ci:` PRs that bump both third-party pins and baseline pins, but only on its weekly schedule. Repos that adopt `track-release-pr.yaml` get a baseline bump PR as soon as a release is published, and uncomment the `ignore` entry in their Dependabot config so the two do not duplicate; third-party actions stay with Dependabot.
 - Every third-party action in this repo is pinned by full SHA with a version comment. This repo's own `.github/dependabot.yml` keeps those pins current.
 
 ## Which workflows apply to which project
@@ -69,6 +69,8 @@ The composite actions are for project-specific workflows in caller repos (for ex
 | `pkgdown.yaml` | if it has `_pkgdown.yml` | | | | |
 | `release-r-package.yaml` | if it uses autonewsmd | | | | |
 | `rolling-prerelease.yaml` | optional | | | | |
+| `notify-downstream.yaml` | optional: repos other repos depend on | | | | |
+| `track-release-pr.yaml` | optional: repos that pin another repo's releases | optional | optional | | |
 | `docs-check.yaml` | optional | | | | |
 | `r-renv-tests.yaml` | | yes | | | |
 | `quarto-pages.yaml` | | | yes | | |
@@ -93,9 +95,11 @@ Config files:
 | Secret | Used by | Required | Scope |
 |---|---|---|---|
 | `RELEASE_PAT` | `release-r-package.yaml` | yes | Fine-grained PAT limited to the one repository, with Repository permissions > Contents: Read and write. For `prepare-pr`, also grant Pull requests read/write. PR releases need no main bypass; only the legacy `direct` mode requires an owner allowed to push to protected main. Checkout uses a read-only token; the PAT is scoped to push and PR-creation steps. |
+| `DISPATCH_PAT` | `notify-downstream.yaml` | when notifying | Fine-grained PAT with Repository permissions > Contents: Read and write on only the downstream repositories it notifies (the dispatches API requires it). Store it on the upstream repo, ideally as an environment secret restricted to `main`. |
+| `BUMP_PAT` | `track-release-pr.yaml` | when tracking | Fine-grained PAT on the one downstream repository: Contents and Pull requests read/write, plus Workflows read/write for `workflow-sha` (it edits files under `.github/`). Add read access to the upstream if it is private. Map an existing secret in the caller if you prefer. |
 | `GITLEAKS_LICENSE` | `gitleaks.yaml` | no | Only needed if the repo moves to an organization account. Personal-account repos do not need it. |
 
-No other workflow takes secrets. API keys such as `CTX_API_KEY` stay in project-specific live-API workflows and must never be passed to baseline callees.
+No other workflow takes secrets. Repository variable `DOWNSTREAM_REPOS` (whitespace-separated `owner/repo`) lists the repos baseline's own release notifies. API keys such as `CTX_API_KEY` stay in project-specific live-API workflows and must never be passed to baseline callees.
 
 ## Releases through a PR
 
@@ -106,6 +110,15 @@ run `publish` from main with `dry-run: false`. Publishing checks the merged
 source without bumping again and creates only the version tag. Neither step
 pushes main, so the PR-only branch rule needs no bypass. Dry-run defaults to
 true in this template. The legacy caller and direct mode remain supported.
+
+## Release propagation
+
+When a repo publishes a release, repos that depend on it get a PR immediately instead of waiting for a poll or Dependabot.
+
+1. The upstream's release workflow ends with a `notify` job calling `notify-downstream.yaml`, which sends a `repository_dispatch` event (for example `comptoxr-release`) to each listed repo. Copy `templates/workflows/release-r-package-pr-notify.yaml`, or add the same job to an existing release workflow, after the release is published. Set the repository variable `DOWNSTREAM_REPOS` and the secret `DISPATCH_PAT`.
+2. Each downstream repo has a `track-release-pr.yaml` caller (template in `templates/workflows/`) listening for that event. It reads the upstream's latest release, rewrites the pin, and opens one PR on a fixed branch `chore/bump-<repo>` (lowercased repo name). A newer release updates that PR in place. It never moves a pin to a lower version. `pin-type: description-remote` rewrites `Remotes: owner/repo@tag` in `DESCRIPTION`; `pin-type: workflow-sha` rewrites `uses: owner/repo/...@<sha>` pins under `.github/` and sets the `# vX.Y.Z` comment. Set the secret `BUMP_PAT`.
+
+The event carries no data the receiver trusts: the tag always comes from the upstream's API, so a stray or late dispatch only triggers a re-check. Keep a weekly schedule in the receiver caller as a backstop for a missed event. Repository names containing a word such as `ai` fail the commit-lint branch rule because the branch includes the name.
 
 ## GitHub Pages setting
 

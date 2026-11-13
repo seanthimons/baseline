@@ -1,0 +1,69 @@
+# Reusable workflow: tell downstream repos that this repo published a release, by
+# sending each a repository_dispatch event. Pair it with track-release-pr.yaml in
+# the downstream repos, which opens the bump PR.
+# Caller permissions: contents: read. Run it after the release is published, as a
+# job that needs the release job; releases created with GITHUB_TOKEN do not trigger
+# `on: release` workflows. Example caller: templates/workflows/release-r-package-pr-notify.yaml
+# Secret DISPATCH_PAT: fine-grained PAT with Contents read/write on every
+# repository listed (the dispatches API requires it) and nothing else.
+name: Notify downstream
+
+on:
+  workflow_call:
+    inputs:
+      event-type:
+        description: repository_dispatch event type the downstream repos listen for, for example baseline-release
+        type: string
+        required: true
+      repositories:
+        description: Whitespace or newline separated owner/repo list; empty sends nothing
+        type: string
+        default: ""
+    secrets:
+      DISPATCH_PAT:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Send repository_dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch to each repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.DISPATCH_PAT }}
+          EVENT_TYPE: ${{ inputs.event-type }}
+          REPOSITORIES: ${{ inputs.repositories }}
+        run: |
+          set -euo pipefail
+          if [[ ! $EVENT_TYPE =~ ^[a-z0-9-]+$ ]]; then
+            echo "::error::event-type must match ^[a-z0-9-]+$"
+            exit 1
+          fi
+          mapfile -t repos < <(tr -s '[:space:]' '\n' <<<"$REPOSITORIES" | sed '/^$/d')
+          if [ "${#repos[@]}" -eq 0 ]; then
+            echo "::notice::No downstream repositories listed; nothing to notify"
+            exit 0
+          fi
+          failed=()
+          for repo in "${repos[@]}"; do
+            if [[ ! $repo =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+              failed+=("$repo (not owner/repo)")
+              continue
+            fi
+            if gh api --method POST "repos/${repo}/dispatches" -f "event_type=${EVENT_TYPE}" --silent; then
+              echo "Notified ${repo}"
+            else
+              failed+=("$repo")
+            fi
+          done
+          if [ "${#failed[@]}" -gt 0 ]; then
+            for repo in "${failed[@]}"; do
+              echo "::error::Could not notify ${repo}"
+            done
+            exit 1
+          fi

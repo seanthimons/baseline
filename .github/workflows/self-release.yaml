@@ -3,7 +3,8 @@
 # Bump comes from Conventional Commit subjects: feat -> minor; fix, perf, refactor,
 # build, and ci commits that change a callee or composite action -> patch. Other
 # types do not release. A breaking change never releases on its own: dispatch with
-# bump=major. Uses GITHUB_TOKEN only; no branch is pushed.
+# bump=major. Releases with GITHUB_TOKEN; no branch is pushed. After a release it
+# notifies the repos listed in the DOWNSTREAM_REPOS variable (DISPATCH_PAT secret).
 name: Release
 
 on:
@@ -41,6 +42,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -140,3 +143,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+
+  notify:
+    name: Notify downstream
+    needs: release
+    if: ${{ needs.release.outputs.tag != '' && !inputs.dry-run && vars.DOWNSTREAM_REPOS != '' }}
+    uses: ./.github/workflows/notify-downstream.yaml
+    with:
+      event-type: baseline-release
+      repositories: ${{ vars.DOWNSTREAM_REPOS }}
+    secrets:
+      DISPATCH_PAT: ${{ secrets.DISPATCH_PAT }}

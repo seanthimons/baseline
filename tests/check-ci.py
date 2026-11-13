@@ -322,3 +322,207 @@ assert callee_job['permissions'].items() <= stub['jobs']['gitleaks']['permission
 self_gitleaks = yaml.safe_load(Path('.github/workflows/self-gitleaks.yaml').read_text())
 assert self_gitleaks['jobs']['gitleaks']['permissions'] == callee_job['permissions']
 print('Gitleaks permission pair and disabled comments checks passed')
+
+# Release propagation: notify-downstream sends one dispatch per repo; track-release-pr rewrites
+# pins to the upstream's latest release and never downgrades. Network calls are mocked.
+notify = yaml.safe_load(Path('.github/workflows/notify-downstream.yaml').read_text())
+track = yaml.safe_load(Path('.github/workflows/track-release-pr.yaml').read_text())
+for wf in (notify, track):
+    assert wf['permissions'] == {'contents': 'read'}
+    for wf_job in wf['jobs'].values():
+        assert wf_job['timeout-minutes']
+        for wf_step in wf_job['steps']:
+            assert '${{' not in wf_step.get('run', ''), wf_step['name']
+notify_script = notify['jobs']['notify']['steps'][0]['run']
+bump_step = next(s for s in track['jobs']['track']['steps'] if s.get('id') == 'bump')
+assert track['jobs']['track']['steps'][0]['with']['persist-credentials'] is False
+assert [s['name'] for s in track['jobs']['track']['steps'] if 'BUMP_PAT' in str(s)] == [bump_step['name'], 'Open or update the bump PR']
+
+with tempfile.TemporaryDirectory() as tmp:
+    root = Path(tmp)
+    bin_dir = root / 'bin'
+    bin_dir.mkdir()
+    gh = bin_dir / 'gh'
+    gh.write_text('''#!/bin/sh
+case "$*" in
+  *"/dispatches"*)
+    printf '%s\\n' "$*" >> "$MOCK_CALLS"
+    case "$*" in *"$MOCK_FAIL_REPO"*) echo "boom" >&2; exit 1 ;; esac
+    exit 0 ;;
+  *"/releases/latest"*)
+    if [ -n "$MOCK_NO_RELEASE" ]; then echo "gh: Not Found (HTTP 404)" >&2; exit 1; fi
+    echo "$MOCK_TAG"; exit 0 ;;
+  *"/commits/"*) echo "$MOCK_SHA"; exit 0 ;;
+esac
+exit 1
+''')
+    gh.chmod(0o755)
+    base_env = dict(os.environ, PATH=f'{bin_dir}:{os.environ["PATH"]}', MOCK_CALLS=str(root / 'calls'),
+                    GH_TOKEN='x', MOCK_FAIL_REPO='NEVER')
+
+    def sh(script, env, cwd=root):
+        return run(['bash', '-eu', '-o', 'pipefail', '-c', script], cwd=cwd, env=env)
+
+    calls = root / 'calls'
+    env = dict(base_env, EVENT_TYPE='baseline-release', REPOSITORIES='a/one\nb/two  c/three')
+    assert sh(notify_script, env).returncode == 0
+    assert len(calls.read_text().splitlines()) == 3
+    assert 'event_type=baseline-release' in calls.read_text()
+    calls.unlink()
+    result = sh(notify_script, dict(env, MOCK_FAIL_REPO='b/two'))
+    assert result.returncode == 1 and 'Could not notify b/two' in result.stdout
+    assert len(calls.read_text().splitlines()) == 3  # a failure does not stop the later repos
+    calls.unlink()
+    assert sh(notify_script, dict(env, REPOSITORIES='  \n')).returncode == 0 and not calls.exists()
+    assert sh(notify_script, dict(env, EVENT_TYPE='Bad Type')).returncode == 1
+    assert sh(notify_script, dict(env, REPOSITORIES='not-a-repo')).returncode == 1
+
+    sha_old, sha_new = 'a' * 40, 'b' * 40
+    desc_text = 'Package: x\nRemotes:\n    seanthimons/ComptoxR@v1.2.0,\n    other/pkg\n'
+    wf_text = (f'jobs:\n  a:\n    uses: seanthimons/baseline/.github/workflows/x.yaml@{sha_old} # v2.0.0\n'
+               f'  b:\n    steps:\n      - uses: seanthimons/baseline/.github/actions/r-setup@{sha_old}\n'
+               '      - uses: actions/checkout@' + 'c' * 40 + ' # v7.0.1\n')
+
+    def case(pin_type, upstream, tag, files, no_release=False):
+        repo = root / f'repo-{len(list(root.glob("repo-*")))}'
+        repo.mkdir()
+        for rel, text in files.items():
+            (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+            (repo / rel).write_text(text)
+        for args in (['init', '-qb', 'main'], ['config', 'user.email', 't@e.org'], ['config', 'user.name', 'T'],
+                     ['add', '-A'], ['commit', '-qm', 'ci: initial']):
+            assert run(['git', *args], cwd=repo).returncode == 0
+        out = repo / 'out'
+        e = dict(base_env, UPSTREAM=upstream, PIN_TYPE=pin_type, MOCK_TAG=tag, MOCK_SHA=sha_new,
+                 GITHUB_OUTPUT=str(out), **({'MOCK_NO_RELEASE': '1'} if no_release else {}))
+        result = sh(bump_step['run'], e, cwd=repo)
+        outputs = dict(l.split('=', 1) for l in out.read_text().splitlines()) if out.exists() else {}
+        return result, outputs, repo
+
+    desc = {'DESCRIPTION': desc_text}
+    result, outputs, repo = case('description-remote', 'seanthimons/ComptoxR', 'v1.2.3.9000', desc)
+    assert result.returncode == 0 and outputs['changed'] == 'true' and outputs['current'] == 'v1.2.0', result.stderr
+    assert (repo / 'DESCRIPTION').read_text() == desc_text.replace('v1.2.0', 'v1.2.3.9000')
+    result, outputs, repo = case('description-remote', 'seanthimons/ComptoxR', 'v1.2.0', desc)
+    assert result.returncode == 0 and outputs == {'changed': 'false'}
+    result, outputs, repo = case('description-remote', 'seanthimons/ComptoxR', 'v1.1.9', desc)  # backport release
+    assert result.returncode == 0 and outputs == {'changed': 'false'}
+    assert (repo / 'DESCRIPTION').read_text() == desc_text
+    result, _, _ = case('description-remote', 'seanthimons/ComptoxR', 'v1.3.0', {'DESCRIPTION': 'Package: x\n'})
+    assert result.returncode == 1
+    result, outputs, _ = case('description-remote', 'seanthimons/ComptoxR', '', desc, no_release=True)
+    assert result.returncode == 0 and outputs == {'changed': 'false'}
+    result, _, _ = case('description-remote', 'seanthimons/ComptoxR', 'bad tag', desc)
+    assert result.returncode == 1
+    result, _, _ = case('nope', 'seanthimons/ComptoxR', 'v1.3.0', desc)
+    assert result.returncode == 1
+
+    result, outputs, repo = case('workflow-sha', 'seanthimons/baseline', 'v2.1.0',
+                                 {'.github/workflows/a.yaml': wf_text, '.github/workflows/b.yml': wf_text})
+    assert result.returncode == 0 and outputs['changed'] == 'true' and outputs['current'] == 'v2.0.0', result.stderr
+    for name in ('a.yaml', 'b.yml'):
+        text = (repo / '.github/workflows' / name).read_text()
+        assert f'x.yaml@{sha_new} # v2.1.0' in text and f'r-setup@{sha_new} # v2.1.0' in text
+        assert sha_old not in text and 'actions/checkout@' + 'c' * 40 + ' # v7.0.1' in text  # third-party untouched
+    result, outputs, _ = case('workflow-sha', 'seanthimons/baseline', 'v1.9.0', {'.github/workflows/a.yaml': wf_text})
+    assert result.returncode == 0 and outputs == {'changed': 'false'}
+    result, outputs, _ = case('description-remote', 'seanthimons/ComptoxR', '1.2.0', desc)      # prefix differs only
+    assert result.returncode == 0 and outputs == {'changed': 'false'}
+    result, outputs, _ = case('description-remote', 'seanthimons/ComptoxR', '1.3.0', desc)       # unprefixed newer tag
+    assert result.returncode == 0 and outputs['changed'] == 'true'
+    result, _, _ = case('workflow-sha', 'seanthimons/baseline', 'v2.1.0', {'.github/workflows/a.yaml': 'jobs: {}\n'})
+    assert result.returncode == 1
+
+# The PR step runs against a local bare remote; only gh is mocked.
+pr_step = next(s for s in track['jobs']['track']['steps'] if s['name'] == 'Open or update the bump PR')
+assert 'x-access-token' not in pr_step['run']
+with tempfile.TemporaryDirectory() as tmp:
+    root = Path(tmp)
+    bin_dir = root / 'bin'
+    bin_dir.mkdir()
+    # The mock answers `pr list` from env and does not run the --jq title filter; that filter is
+    # not covered here.
+    (bin_dir / 'gh').write_text('''#!/bin/sh
+case "$*" in
+  "auth setup-git") exit 0 ;;
+  "pr list"*)
+    case "$*" in *"--state all"*) echo "$MOCK_PR_SAME" ;; *) echo "$MOCK_PR_OPEN" ;; esac
+    exit 0 ;;
+  "pr create"* | "pr edit"*) printf '%s\\n' "$*" >> "$MOCK_PR_CALLS"; exit 0 ;;
+esac
+exit 1
+''')
+    (bin_dir / 'gh').chmod(0o755)
+    bare = root / 'origin.git'
+    assert run(['git', 'init', '--bare', '-qb', 'main', str(bare)]).returncode == 0
+    seed = root / 'seed'
+    seed.mkdir()
+    (seed / 'DESCRIPTION').write_text(desc_text)
+
+    def git(cwd, *args):
+        result = run(['git', *args], cwd=cwd)
+        assert result.returncode == 0, (args, result.stderr)
+        return result.stdout.strip()
+
+    for args in (['init', '-qb', 'main'], ['config', 'user.email', 't@e.org'], ['config', 'user.name', 'T'],
+                 ['add', '-A'], ['commit', '-qm', 'ci: initial'], ['remote', 'add', 'origin', str(bare)],
+                 ['push', '-q', 'origin', 'main']):
+        git(seed, *args)
+    calls = root / 'pr-calls'
+    branch = 'chore/bump-comptoxr'
+
+    def pr_run(tag, pr_open='', pr_same=''):
+        work = root / f'work-{len(list(root.glob("work-*")))}'
+        git(root, 'clone', '-q', '--depth', '1', f'file://{bare}', str(work))  # as actions/checkout does
+        git(work, 'config', 'user.email', 't@e.org')
+        git(work, 'config', 'user.name', 'T')
+        (work / 'DESCRIPTION').write_text(desc_text.replace('v1.2.0', tag))
+        e = dict(os.environ, PATH=f'{bin_dir}:{os.environ["PATH"]}', GH_TOKEN='x', UPSTREAM='seanthimons/ComptoxR',
+                 PIN_TYPE='description-remote', BASE='main', TAG=tag, CURRENT='v1.2.0', RUNNER_TEMP=str(work),
+                 GITHUB_REPOSITORY='test/example', MOCK_PR_CALLS=str(calls), MOCK_PR_OPEN=pr_open, MOCK_PR_SAME=pr_same)
+        result = run(['bash', '-eu', '-o', 'pipefail', '-c', pr_step['run']], cwd=work, env=e)
+        assert result.returncode == 0, result.stderr
+        return work
+
+    def remote_tip():
+        return git(bare, 'rev-parse', '--verify', '-q', f'refs/heads/{branch}') if run(
+            ['git', 'rev-parse', '--verify', '-q', f'refs/heads/{branch}'], cwd=bare).returncode == 0 else None
+
+    def last_call():
+        return calls.read_text().splitlines()[-1] if calls.exists() else ''
+
+    def advance_main():
+        (seed / f'f{len(list(seed.glob("f*")))}').write_text('x')
+        git(seed, 'add', '-A')
+        git(seed, 'commit', '-qm', 'ci: main moves')
+        git(seed, 'push', '-q', 'origin', 'main')
+
+    pr_run('v1.3.0')                                            # first run: branch absent -> push and create
+    first = remote_tip()
+    assert first and last_call().startswith('pr create') and 'bump comptoxr pin to v1.3.0' in last_call()
+    calls.unlink()
+    advance_main()                                              # every later case runs on a moved base
+    pr_run('v1.3.0', pr_open='7', pr_same='7')                  # same release has a PR: no push, no PR call
+    assert remote_tip() == first and not calls.exists()
+    pr_run('v1.3.0')                                            # pushed but PR creation failed earlier: keep the branch, create the PR
+    assert remote_tip() == first and last_call().startswith('pr create')
+    calls.unlink()
+    pr_run('v1.3.0', pr_same='7')                               # PR closed on purpose: stays closed, no re-push
+    assert remote_tip() == first and not calls.exists()
+    pr_run('v1.4.0', pr_open='7')                               # newer release: force-push, edit the open PR
+    second = remote_tip()
+    assert second != first and last_call().startswith('pr edit 7') and 'to v1.4.0' in last_call()
+    calls.unlink()
+    human = root / 'human'
+    git(root, 'clone', '-q', '-b', branch, str(bare), str(human))
+    git(human, 'config', 'user.email', 'maintainer@example.org')
+    git(human, 'config', 'user.name', 'Maintainer')
+    git(human, 'commit', '--allow-empty', '-qm', 'fix: adjust for the new release')
+    git(human, 'push', '-q', 'origin', branch)
+    human_tip = remote_tip()
+    pr_run('v1.5.0', pr_open='7')                               # a maintainer's commit is never overwritten
+    assert remote_tip() == human_tip and not calls.exists()
+    git(bare, 'update-ref', '-d', f'refs/heads/{branch}')       # branch deleted after closing the PR
+    pr_run('v1.5.0', pr_same='9')
+    assert remote_tip() is None and not calls.exists()
+print('Release propagation checks passed')

@@ -15,3 +15,9 @@ updates:
       actions:
         patterns:
           - "*"
+    # Repos that adopt track-release-pr.yaml for baseline pins uncomment this so
+    # Dependabot and the tracker do not open duplicate baseline PRs; third-party
+    # actions keep their Dependabot PRs. Confirm on the next run that baseline
+    # pins are no longer proposed.
+    # ignore:
+    #   - dependency-name: "seanthimons/baseline*"
