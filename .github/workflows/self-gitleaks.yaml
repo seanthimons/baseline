@@ -1,0 +1,23 @@
+# Scan this repository's pull requests with the shared gitleaks workflow. It doubles as the
+# regression run for the callee's permission contract: the calling job grants exactly what the
+# callee requests. Dispatch it for a full-history scan.
+name: Self gitleaks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-gitleaks-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  gitleaks:
+    name: Gitleaks
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/gitleaks.yaml

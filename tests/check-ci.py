@@ -307,3 +307,18 @@ with tempfile.TemporaryDirectory() as tmp:
     git('merge', '-q', '--no-ff', '-m', 'Merge pull request #5 from x/side', 'side')
     expect('v1.5.0')
 print('Release version regression checks passed')
+
+# gitleaks-action lists a PR's commits through the API, so the callee job needs pull-requests: read
+# and the calling job must grant at least that; comments stay off so no write scope is needed.
+gitleaks = yaml.safe_load(Path('.github/workflows/gitleaks.yaml').read_text())
+callee_job = gitleaks['jobs']['gitleaks']
+assert gitleaks['permissions'] == {'contents': 'read'}
+assert callee_job['permissions'] == {'contents': 'read', 'pull-requests': 'read'}
+scan = next(s for s in callee_job['steps'] if s['name'] == 'Run gitleaks')
+assert scan['env']['GITLEAKS_ENABLE_COMMENTS'] == 'false'
+stub = yaml.safe_load(Path('templates/workflows/gitleaks.yaml').read_text())
+assert stub['permissions'] == {'contents': 'read'}
+assert callee_job['permissions'].items() <= stub['jobs']['gitleaks']['permissions'].items()
+self_gitleaks = yaml.safe_load(Path('.github/workflows/self-gitleaks.yaml').read_text())
+assert self_gitleaks['jobs']['gitleaks']['permissions'] == callee_job['permissions']
+print('Gitleaks permission pair and disabled comments checks passed')

@@ -1,6 +1,6 @@
 # Reusable workflows
 
-Every workflow here except the `self-*.yaml` ones is a reusable workflow (`on: workflow_call`). Callers copy a stub from `templates/workflows/`, pin this repo by full SHA with a `# v1.x.y` comment, and own triggers, path filters, and concurrency. Inputs listed below are a summary; see the file header and `on.workflow_call.inputs` block of each file for the authoritative input list and defaults.
+Every workflow here except the `self-*.yaml` ones is a reusable workflow (`on: workflow_call`). Callers copy a stub from `templates/workflows/`, pin this repo by full SHA with a `# vX.Y.Z` comment, and own triggers, path filters, and concurrency. Inputs listed below are a summary; see the file header and `on.workflow_call.inputs` block of each file for the authoritative input list and defaults.
 
 All callees declare top-level `permissions: contents: read` and set `timeout-minutes` on every job. A callee cannot hold more permissions than the calling job grants, so the "Caller permissions" below go on the caller's job, not its top level. Secrets are passed explicitly by name; never use `secrets: inherit`.
 
@@ -44,7 +44,7 @@ Fails a PR until user docs are confirmed. It passes when the PR body has a ticke
 
 ## `gitleaks.yaml`
 
-Scans full git history (`fetch-depth: 0`) with gitleaks-action and reads the caller's repo-root `.gitleaks.toml`. Bot commits are scanned too; there is no actor skip. Inputs: none. Secrets: `GITLEAKS_LICENSE` (optional; only for organization-owned repos). Caller permissions: `contents: read`. The caller template scans pushes to `main` and `master` and every pull request; add other long-lived branches (for example `integration`) to `push.branches`. Keep the weekly `schedule` in the caller and change the cron minute per repo to stagger runs. See file header for the authoritative input list.
+Scans full git history (`fetch-depth: 0`) with gitleaks-action and reads the caller's repo-root `.gitleaks.toml`. Bot commits are scanned too; there is no actor skip. Inputs: none. Secrets: `GITLEAKS_LICENSE` (optional; only for organization-owned repos). Caller permissions, granted on the calling job: `contents: read` and `pull-requests: read` (the action lists a pull request's commits through the API; a caller that grants less fails at startup). PR comments are disabled, so no write permission or PAT is needed. The caller template scans pushes to `main` and `master` and every pull request; add other long-lived branches (for example `integration`) to `push.branches`. Keep the weekly `schedule` in the caller and change the cron minute per repo to stagger runs. See file header for the authoritative input list.
 
 ## `quarto-pages.yaml`
 
@@ -61,6 +61,10 @@ Runs actionlint and zizmor over the caller's `.github/workflows/`. zizmor flags 
 ## `self-lint.yaml`
 
 Not reusable by other repos. Runs `lint-workflows.yaml` and the workflow regression tests against this repository on pull requests that touch `.github/**` or `tests/**`. `self-release.yaml` calls it on every push to `main`.
+
+## `self-gitleaks.yaml`
+
+Not reusable by other repos. Calls `gitleaks.yaml` on every pull request to this repository, with the calling job granting exactly the permissions the callee requests, so a mismatch fails here first. Dispatch it for a full-history scan.
 
 ## `self-commit-lint.yaml`
 
