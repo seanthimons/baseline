@@ -22,7 +22,7 @@ This repo must stay public. Public caller repos cannot call reusable workflows f
   dependabot.yml      bumps this repo's own action pins
 templates/
   workflows/          caller stubs to copy into <repo>/.github/workflows/
-  config/             dependabot.yml, .gitleaks.toml, air.toml, codecov.yml, .gitattributes
+  config/             dependabot.yml, .gitleaks.toml, air.toml, codecov.yml, .gitattributes, .gitignore, .gitignore.python
 examples/             standalone workflows to copy and edit (shinylive Pages deploy)
 docs/                 audit report, raw audit data, migration plan
 ```
@@ -40,7 +40,7 @@ The composite actions are for project-specific workflows in caller repos (for ex
    Get the SHA with `git ls-remote https://github.com/seanthimons/baseline refs/tags/v1.4.1`.
 4. Edit the caller's triggers, branch filters, and inputs. Pass secrets explicitly by name. Do not use `secrets: inherit`.
 5. Grant permissions on the calling job only. A callee cannot escalate beyond what the caller grants. Keep the caller's top-level `permissions: contents: read`.
-6. Copy the config files you need from `templates/config/` (`.gitignore` there is the root-local pattern: ignores every root dot-directory and root `*.md` without naming agent files; opt files in with `!/<name>`) to the repo root (`dependabot.yml` and `pull_request_template.md` go in `.github/`).
+6. Copy the config files you need from `templates/config/` (`.gitignore` there is the root-local pattern: ignores every root dot-file, dot-directory and `*.md` without naming agent files, with the usual tracked ones such as `.github/`, `README.md` and `NEWS.md` already opted in; opt anything else in with `!/<name>`; it also carries the GitHub R defaults, and Python repos append `.gitignore.python`) to the repo root (`dependabot.yml` and `pull_request_template.md` go in `.github/`).
 7. Delete the repo's old local copy of each workflow you replaced.
 8. Update branch protection. Required status check names change to `caller-job / callee-job (matrix)`, for example `R CMD check / ubuntu-latest (release)`. Change them in the same PR, or PRs block on a check that never reports. `docs-check.yaml` only blocks merge once `Docs Check / Docs confirmation` is a required check.
 
