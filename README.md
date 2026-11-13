@@ -73,7 +73,7 @@ The composite actions are for project-specific workflows in caller repos (for ex
 ## How to adopt
 
 1. Pick the workflows for your project type from the table below.
-2. Copy each caller stub from `templates/workflows/` into `<repo>/.github/workflows/`. Keep the `.yaml` extension.
+2. Copy each caller stub from `templates/workflows/` on `main` into `<repo>/.github/workflows/`. Keep the `.yaml` extension. Do not copy from inside a release tag: a release is tagged before its stubs are repinned, so the stubs in the `v2.0.0` tag still pin `v1.5.0`. Check the pin comment of what you copied.
 3. Pin the `uses:` ref to a full commit SHA of a baseline release tag, with the tag as a trailing comment:
    ```yaml
    uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@<40-char-sha> # v2.0.0
@@ -93,7 +93,7 @@ The composite actions are for project-specific workflows in caller repos (for ex
 - `self-release.yaml` tags and publishes a release on each merge to `main` that ships a change, after Self lint and the workflow regression checks pass, then sends `repository_dispatch` `baseline-release` to the repos in `DOWNSTREAM_REPOS` (see "Release propagation"). It reads the Conventional Commit subjects since the last tag: `feat` is a minor release; `fix`, `perf`, `refactor`, `build`, and `ci` commits that change a callee or composite action are patches. `docs`, `chore`, `test`, `style`, other `ci` commits (templates, Dependabot config, `self-*` workflows), and subjects that are not Conventional Commits do not release. Direct pushes to `main` by an admin release the same way.
 - A breaking change (`!` in the subject or a `BREAKING CHANGE:` footer) does not release on its own, and neither do later merges until it ships. Run the **Release** workflow from `main` with `bump: major` and `dry-run` off. The same dispatch forces any other bump.
 - Make `Commit Lint / Conventional Commits` a required check on `main`, because releases trust the PR title that squash-merge writes to `main`.
-- Release callers pin by SHA, so the `# vX.Y.Z` comments in `templates/workflows/` are updated by hand in a `ci:` PR after a release.
+- Release callers pin by SHA, so the `# vX.Y.Z` comments in `templates/workflows/` are updated by hand in a `ci:` PR after a release. Until that PR merges, `main` and the release tag still pin the previous release, and the stubs inside a tag always do.
 - `templates/config/dependabot.yml` covers the `github-actions` ecosystem, which includes `uses: seanthimons/baseline/...@<sha>` refs. By default Dependabot opens grouped `ci:` PRs that bump both third-party pins and baseline pins, but only on its weekly schedule. Repos that adopt `track-release-pr.yaml` get a baseline bump PR as soon as a release is published, and uncomment the `ignore` entry in their Dependabot config so the two do not duplicate; third-party actions stay with Dependabot.
 - Every third-party action in this repo is pinned by full SHA with a version comment. This repo's own `.github/dependabot.yml` keeps those pins current.
 
