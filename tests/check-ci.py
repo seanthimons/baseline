@@ -454,7 +454,7 @@ exit 1
 ''')
     (bin_dir / 'gh').chmod(0o755)
     bare = root / 'origin.git'
-    assert run(['git', 'init', '--bare', '-q', str(bare)]).returncode == 0
+    assert run(['git', 'init', '--bare', '-qb', 'main', str(bare)]).returncode == 0
     seed = root / 'seed'
     seed.mkdir()
     (seed / 'DESCRIPTION').write_text(desc_text)
