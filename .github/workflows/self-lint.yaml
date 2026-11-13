@@ -5,7 +5,7 @@ name: Self lint
 # before it publishes.
 on:
   pull_request:
-    paths: ['.github/**', 'tests/**']
+    paths: ['.github/**', 'tests/**', 'templates/config/.gitignore*']
   workflow_dispatch:
   workflow_call:
 
@@ -45,3 +45,4 @@ jobs:
         run: |
           python3 -m pip install PyYAML==6.0.2
           python3 tests/check-ci.py
+          python3 tests/check-gitignore.py

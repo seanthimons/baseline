@@ -1,11 +1,90 @@
-# Root-local workspace files. Blocks every root dot-directory (.claude/, .planning/,
-# .beans/, .worktrees/) and every root markdown file (AGENTS.md, CLAUDE.md, HANDOFF.md,
-# session notes) without naming them. Add a specific !/<name> rule to opt a file in.
-/.*/
+# Root-local workspace files. Ignores every root dot-file and dot-directory (agent
+# workspaces, planning folders, task trackers, local worktrees) and every root markdown
+# file (instruction files, handoff and session notes) without naming them, so a tracked
+# .gitignore does not reveal which tools a repo uses. Opt a file in with !/<name>.
+/.*
 /*.md
+
+# Root dot-files and dot-directories a repo normally tracks.
 !/.github/
+!/.specmill/
+!/.gitignore
+!/.gitattributes
+!/.gitleaks.toml
+!/.gitleaksignore
+!/.Rbuildignore
+!/.Rprofile
+!/.Renviron.example
+!/.lintr
+!/.nojekyll
+!/.pre-commit-config.yaml
+
+# Root markdown files a repo normally tracks. Any other one (for example
+# cran-comments.md) needs its own !/<name> line.
 !/README.md
-# Sensitive repo: leave AGENTS.md and CLAUDE.md ignored. Shared repo: opt them in.
-# !/AGENTS.md
-# !/CLAUDE.md
-# !/CONTEXT.md
+!/NEWS.md
+!/LICENSE.md
+!/CONTRIBUTING.md
+!/CODE_OF_CONDUCT.md
+!/SECURITY.md
+# Shared repo: opt agent instruction files in with !/<name>. Sensitive repo: leave them ignored.
+
+# --- R defaults ---------------------------------------------------------------
+# Source: https://github.com/github/gitignore/blob/8ba69a4220df77b696fe97b60fb70eb668fb00e1/R.gitignore (CC0-1.0)
+# Local changes: the `docs/` rule (pkgdown site) is removed because it hides committed
+# documentation; trailing whitespace is trimmed.
+# Refresh: gh api repos/github/gitignore/contents/R.gitignore --jq .content | base64 -d
+# then reapply the local changes and update the commit above.
+
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+.RData
+.RDataTmp
+
+# User-specific files
+.Ruserdata
+
+# Example code in package build process
+*-Ex.R
+
+# Output files from R CMD build
+/*.tar.gz
+
+# Output files from R CMD check
+/*.Rcheck/
+
+# RStudio files
+.Rproj.user/
+
+# produced vignettes
+vignettes/*.html
+vignettes/*.pdf
+
+# OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
+.httr-oauth
+
+# knitr and R markdown default cache directories
+*_cache/
+/cache/
+
+# Temporary files created by R markdown
+*.utf8.md
+*.knit.md
+
+# R Environment Variables
+.Renviron
+.env
+
+# translation temp files
+po/*~
+
+# RStudio Connect folder
+rsconnect/
+
+# compiled code
+src/*.o
+src/*.so
+src/*.dll

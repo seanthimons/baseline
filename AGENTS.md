@@ -8,8 +8,8 @@ project types (`IF SHINY`, `IF PACKAGE`, `IF PIPELINE`), and replace the
 
 - Decide once whether `AGENTS.md` and `CLAUDE.md` are tracked. Shared repo:
   track them (`!/AGENTS.md`, `!/CLAUDE.md` in `.gitignore`). Sensitive repo:
-  `templates/config/.gitignore` blocks all root dot-directories and root
-  markdown without naming them, so the files stay local and unlisted.
+  `templates/config/.gitignore` blocks all root dot-files, dot-directories, and
+  root markdown without naming them, so the files stay local and unlisted.
 - Ownership: pick one. User-owned (default): keep the Workflow scope bullets
   marked `IF USER-OWNED` and delete the `Ownership` section. Agent-owned: keep
   the `Ownership` section and delete those bullets. Do not keep both; a scope
