@@ -15,7 +15,7 @@ These were live hazards. #3 is resolved; fix #1 and #2 in their own repos now, i
 - Branch: Conventional Branch name, for example `chore/adopt-baseline-ci`. No agent or model names.
 - Commits: `ci:` type (a recognized autonewsmd type), for example `ci: adopt baseline gitleaks and commit-lint callers`.
 - Workflow files use the `.yaml` extension and LF line endings.
-- Callers pin baseline by full SHA with a `# v1.x.y` comment. Pass secrets by name, never `secrets: inherit`.
+- Callers pin baseline by full SHA with a `# vX.Y.Z` comment. Pass secrets by name, never `secrets: inherit`.
 
 ## Required status checks change name
 
@@ -37,7 +37,7 @@ Lint findings (#20): small repos (serapeum, envharmonizer-build, envharmonizer) 
 
 - [ ] **ComptoxR**: replace `gitleaks.yaml` and `commit-lint.yaml`. Keep the existing `.gitleaks.toml` and `.gitleaksignore`, and re-base `.gitleaks.toml` on the template's `[extend] useDefault = true` shape. commit-lint now also covers PRs to `integration`. Add `integration` to the gitleaks caller's `push.branches`; the current workflow scans `[main, integration]`.
 - [x] **singlehit**: replace `gitleaks.yaml` and `commit-lint.yaml`. Add `dependabot.yml` (currently missing).
-- [ ] **boosterpak**: replace `gitleaks.yaml` (v2.3.9) and `commit-lint.yaml`.
+- [x] **boosterpak**: replace `gitleaks.yaml` (v2.3.9) and `commit-lint.yaml`.
 - [ ] **chorus**: replace `gitleaks.yaml` and `commit-lint.yaml`. Replace the empty `air.toml` with the shared copy.
 - [x] **concert**: replace `gitleaks.yaml` and `commit-lint.yaml`. Replace the tab-indented `air.toml` with the shared copy.
 - [x] **specmill**: replace `gitleaks.yml` and `commit-lint.yml`. Add `dependabot.yml` (currently missing).
@@ -83,8 +83,9 @@ Lint findings (#20): small repos (serapeum, envharmonizer-build, envharmonizer) 
 
 ## Ongoing
 
-- Callers pin baseline by full SHA with a `# v1.x.y` comment. Dependabot proposes the bumps.
-- Breaking callee input changes require a new major tag.
+- Callers pin baseline by full SHA with a `# vX.Y.Z` comment. Dependabot proposes the bumps.
+- Breaking callee changes (removed or renamed inputs, changed defaults, new required secrets or permissions) require a new major tag.
+- Moving a gitleaks caller to v2.0.0: the shared workflow now needs `pull-requests: read` on the calling job (#24). First add `permissions: contents: read` and `pull-requests: read` to the calling job in the repo's gitleaks caller (valid against v1.5.0 too), then repin. Otherwise the workflow fails at startup, including push and scheduled scans, and a grouped Dependabot bump to v2 is red. Callers on a v1 stub today: concert, specmill, singlehit, seanthimons.github.io, and boosterpak. scifindeR returns from its local gitleaks to the shared caller once v2.0.0 exists.
 - Every callee keeps the header rules: `permissions: contents: read`, per-job escalation, `timeout-minutes`, and SHA pins. lint-workflows (actionlint and zizmor) enforces them in caller repos.
 
 ## Open questions
