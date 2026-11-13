@@ -31,9 +31,9 @@ Reusable-workflow jobs report as `caller-job / callee-job (matrix)`, for example
 
 ## Phase 1: hygiene everywhere (low risk)
 
-Every repo gets the gitleaks, commit-lint, and lint-workflows callers, plus `.github/dependabot.yml`, `.gitattributes`, and `.gitleaks.toml`. Delete the local gitleaks and commit-lint copies. Use unfiltered triggers or `github.event.repository.default_branch` so `main` and `master` repos need no per-repo edits. Keep a weekly gitleaks cron in each caller, with a different minute per repo.
+Every repo gets the gitleaks, commit-lint, and lint-workflows callers, plus `.github/dependabot.yml`, `.gitattributes`, and `.gitleaks.toml`. Delete the local gitleaks and commit-lint copies. The gitleaks stub scans pushes to `main` and `master` and every pull request, so repos on either branch need no per-repo edits (`on:` filters cannot read `github.event.repository.default_branch`); add other long-lived branches to its `push.branches`. Keep a weekly gitleaks cron in each caller, with a different minute per repo.
 
-- [ ] **ComptoxR**: replace `gitleaks.yaml` and `commit-lint.yaml`. Keep the existing `.gitleaks.toml` and `.gitleaksignore`, and re-base `.gitleaks.toml` on the template's `[extend] useDefault = true` shape. commit-lint now also covers PRs to `integration`.
+- [ ] **ComptoxR**: replace `gitleaks.yaml` and `commit-lint.yaml`. Keep the existing `.gitleaks.toml` and `.gitleaksignore`, and re-base `.gitleaks.toml` on the template's `[extend] useDefault = true` shape. commit-lint now also covers PRs to `integration`. Add `integration` to the gitleaks caller's `push.branches`; the current workflow scans `[main, integration]`.
 - [ ] **QRMA_VFAR**: replace `gitleaks.yaml` and `commit-lint.yaml`. Add `dependabot.yml` (currently missing).
 - [ ] **boosterpak**: replace `gitleaks.yaml` (v2.3.9) and `commit-lint.yaml`.
 - [ ] **chorus**: replace `gitleaks.yaml` and `commit-lint.yaml`. Replace the empty `air.toml` with the shared copy.
@@ -42,7 +42,7 @@ Every repo gets the gitleaks, commit-lint, and lint-workflows callers, plus `.gi
 - [ ] **amos-harmonizer**: add the gitleaks and commit-lint callers and all config files.
 - [ ] **sk_app**: add the gitleaks and commit-lint callers and config files. `.gitattributes` fixes the CRLF workflow file.
 - [ ] **epa-sswqs**: add the gitleaks and commit-lint callers and config files. `.gitattributes` fixes the mixed CRLF/LF in `build-toxval.yml`.
-- [ ] **serapeum**: replace `gitleaks.yml`. Add the commit-lint caller and config files. Add allowlist entries to `.gitleaks.toml` only for confirmed false positives (for example `config.yml` or test fixtures).
+- [ ] **serapeum**: replace `gitleaks.yml`. Add the commit-lint caller and config files. Add allowlist entries to `.gitleaks.toml` only for confirmed false positives (for example `config.yml` or test fixtures). Add `integration` to the gitleaks caller's `push.branches`; the current workflow scans `[main, integration]`.
 - [ ] **seanthimons.github.io**: replace `gitleaks.yml`. Drop the stale `integration` branch from triggers. Add the commit-lint caller and config files. Consider allowlisting `docs/` and `_freeze/`.
 
 ## Phase 2: R check and coverage
