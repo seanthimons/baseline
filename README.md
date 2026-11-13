@@ -11,6 +11,47 @@ The reasons for this layout and the findings behind it are in [`docs/audit-2026-
 
 This repo must stay public. Public caller repos cannot call reusable workflows from a private repo.
 
+## Scope and boundary with boosterpak
+
+baseline and [boosterpak](https://github.com/seanthimons/boosterpak) are separate on purpose. The boundary is where the code runs, not the topic.
+
+- **baseline's consumer is a repository**: a GitHub runner, or static files copied into a repo. baseline owns policy and wiring: workflows, action pins, and static config templates.
+- **boosterpak's consumer is an R session inside a project.** boosterpak owns mechanism: anything that needs R logic, and R unit tests, to be correct. Its purpose is to smooth the rough edges of working in R: binaries versus compiling, OS and R version differences, portable restores. Packs are one feature of that.
+
+Two rules keep the line sharp:
+
+- **The laptop test.** If an R fix in baseline would also be needed on a laptop, it belongs in boosterpak. A CI runner is just another new machine.
+- **Values, not branches.** baseline may copy a value from boosterpak (for example the P3M URL) but never a branch of logic (for example "if Linux, rewrite to manylinux").
+
+boosterpak will generate the portable setup files, the way renv generates `renv/activate.R`, and baseline will stop authoring them. Two templates are exceptions to the rules above today, because baseline currently authors them: `templates/config/setup.R` (platform URL rewriting and a pinned boosterpak SHA) and the offline loader in `templates/config/.Rprofile`. They are described under [R repositories and cross-platform installs](#r-repositories-and-cross-platform-installs) and are not to be extended.
+
+### The contract
+
+This is everything baseline's CI needs from boosterpak, and everything baseline may know about it:
+
+1. `setup.R` is committed at the project root, and running it restores the locked library on Windows, macOS and Linux.
+2. After `source("setup.R")` in a vanilla session, `renv::paths$library(project = getwd())` works.
+3. Opening the project before setup installs nothing.
+4. baseline reads nothing else from boosterpak: no marker files, no internals, and no knowledge of packs or `boosters.toml`.
+
+The `portable-setup: true` input of `r-renv-tests.yaml`, `quarto-pages.yaml` and the `r-setup` composite relies on points 1 and 2 only: it runs `source("setup.R")` and reads `renv::paths$library()`. Point 3 is a guarantee for people opening a clone; the CI setup step runs with `--vanilla`, so the project profile is never read before setup. Point 4 limits what baseline's workflows and templates may do.
+
+### Adoption order for a new project
+
+A new project adopts in three steps. This is a recommendation, not a dependency.
+
+1. **baseline hygiene first, before the first commit.** `.gitignore`, `.gitattributes`, `.gitleaks.toml`, `dependabot.yml`, and the callers every repo takes: commit-lint, gitleaks and lint-workflows. These are worth most before any history exists. For example, [boosterpak's own adoption PR](https://github.com/seanthimons/boosterpak/pull/41) had to renormalize line endings in two files because `.gitattributes` arrived late.
+2. **boosterpak second.** It sets up the R environment: packs, restores and portable lockfiles. For a portable renv project it also provides the portable setup files, `setup.R` and the offline loader. Today those come from this repo's `templates/config/setup.R` and `.Rprofile`; boosterpak's generator will replace them.
+3. **baseline's R callers last.** Which ones apply depends on the project type that step 2 established (see [Which workflows apply to which project](#which-workflows-apply-to-which-project)), and `portable-setup: true` needs the `setup.R` from step 2.
+
+Neither tool needs the other installed: boosterpak works in a project with no repo, and baseline works in a repo with no R. Only `portable-setup: true` depends on step 2's `setup.R`. What makes either order safe is that every file, or managed block within a file, has one owner:
+
+- baseline owns the hygiene files and `.github/`.
+- boosterpak owns its own project files and its managed block in `.Rprofile`. `setup.R` and the offline loader are on boosterpak's side too; until its generator replaces them, baseline's transitional templates supply them.
+- `.Rprofile` otherwise belongs to the project: baseline's template is merged by hand and never replaces the file. `air.toml` is kept by whichever tool wrote it first, and neither tool overwrites an existing one automatically.
+
+Neither tool overwrites a file or block the other owns.
+
 ## Layout
 
 ```
@@ -85,7 +126,7 @@ Config files:
 | `.github/dependabot.yml` | every repo (add `npm` and `cargo` entries locally where needed) |
 | `.gitattributes` | every repo |
 | `.gitleaks.toml` | every repo; each repo keeps its own allowlist entries |
-| `air.toml` | R repos |
+| `air.toml` | R repos. baseline's template is canonical, and `boosterpak::init()` writes an identical default (plus an ownership marker line) when its setting asks for one and no `air.toml` exists, so the two must stay the same: a PR that changes this template says that boosterpak's default needs the same change. Neither tool overwrites an existing file automatically. |
 | `.Rprofile` | R repos: merge P3M and renv/pak defaults into the existing profile |
 | `setup.R` | renv projects: one-command portable restore, with pinned boosterpak tooling |
 | `codecov.yml` | repos that enable Codecov in `test-coverage.yaml` |
