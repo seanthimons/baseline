@@ -49,6 +49,7 @@ This section applies to the baseline repo only. Delete it when adopting this fil
 - Copy values, never branches. A value such as the P3M URL may be copied from boosterpak. A branch such as "if Linux, rewrite to manylinux" may not.
 - Read only the four-point contract in README.md. Never learn about packs, `boosters.toml`, marker files, or boosterpak internals in workflows or templates.
 - `templates/config/setup.R` and the offline loader in `templates/config/.Rprofile` break these rules today and are transitional. Repair them when broken, including updating the pinned boosterpak SHA, but do not add behavior to them.
+- Adoption order for a new project is a recommendation: baseline hygiene first (before the first commit), then boosterpak, then baseline's R callers. See README.md, "Adoption order for a new project". Every file, or managed block within a file, has one owner: never overwrite a file or block the other tool owns.
 
 ## Layout
 
