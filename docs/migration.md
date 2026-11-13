@@ -81,6 +81,14 @@ Lint findings (#20): small repos (serapeum, envharmonizer-build, envharmonizer) 
 - [ ] **epa-sswqs**: in `build-toxval.yml`, scope secrets to the steps that need them, create the new release before deleting the old one, check the parquet files exist before publishing, add timeout and concurrency, and use `r-version: renv`. Note that GitHub disables scheduled workflows after 60 days without repo activity, which affects the twice-yearly cron.
 - [ ] **bsicons**: disable Actions on the fork, or delete the upstream `R-CMD-check.yaml`. Do not migrate it.
 
+## Phase 5: release propagation
+
+- [ ] Create `DISPATCH_PAT` (Contents read/write on the downstream repos only) on each upstream, and `BUMP_PAT` on each downstream repo. Set the `DOWNSTREAM_REPOS` variable on baseline.
+- [ ] Pin the new templates to the release that ships `notify-downstream.yaml` and `track-release-pr.yaml` in a `ci: pin caller stubs` PR; the templates carry `REPLACE_WITH_RELEASE_SHA` until then.
+- [ ] **baseline -> downstream**: add the `track-release-pr` caller (`workflow-sha`, event `baseline-release`) to each repo and uncomment the Dependabot `ignore` entry. Add the repo to `DOWNSTREAM_REPOS`.
+- [ ] **ComptoxR -> concert, chorus**: add a `notify` job to ComptoxR's `release.yaml` (event `comptoxr-release`; concert already listens for it). Replace concert's `track-comptoxr-release.yaml` with the `description-remote` caller, and copy it to chorus.
+- [ ] **specmill -> ComptoxR**: same pattern with its own event type, once its release caller carries the notify job.
+
 ## Ongoing
 
 - Callers pin baseline by full SHA with a `# vX.Y.Z` comment. Dependabot proposes the bumps.

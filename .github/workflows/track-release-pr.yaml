@@ -1,0 +1,200 @@
+# Reusable workflow: when an upstream repo publishes a stable release, open (or update)
+# one PR in this repo that moves the pin to it. The tag is always read from the upstream's
+# latest release, never from the event payload, so a late or forged dispatch can only
+# trigger a re-check. Never moves a pin to a lower version.
+#   description-remote: rewrite `<upstream>@<tag>` in the DESCRIPTION Remotes field.
+#   workflow-sha: rewrite every `uses: <upstream>/<path>@<sha> # <tag>` pin under .github/
+#     to the release's commit SHA. Pushing workflow files needs Workflows write on the PAT.
+# Caller permissions: contents: read. The PAT, not GITHUB_TOKEN, pushes and opens the PR
+# so the PR's checks run. Caller owns triggers (repository_dispatch, workflow_dispatch,
+# optional schedule as a backstop) and concurrency.
+# Secret BUMP_PAT: fine-grained PAT on this repo with Contents and Pull requests
+# read/write (plus Workflows read/write for workflow-sha); read access to the upstream
+# if it is private. Example caller: templates/workflows/track-release-pr.yaml
+name: Track release PR
+
+on:
+  workflow_call:
+    inputs:
+      upstream:
+        description: owner/repo whose releases to follow
+        type: string
+        required: true
+      pin-type:
+        description: "description-remote or workflow-sha"
+        type: string
+        required: true
+      base:
+        description: Branch to update; the PR targets it
+        type: string
+        default: main
+    secrets:
+      BUMP_PAT:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  track:
+    name: Bump pin
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.base }}
+          persist-credentials: false
+
+      - name: Rewrite pins to the latest release
+        id: bump
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BUMP_PAT }}
+          UPSTREAM: ${{ inputs.upstream }}
+          PIN_TYPE: ${{ inputs.pin-type }}
+        run: |
+          set -euo pipefail
+          if [[ ! $UPSTREAM =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::upstream must be owner/repo"
+            exit 1
+          fi
+          case $PIN_TYPE in
+            description-remote | workflow-sha) ;;
+            *) echo "::error::pin-type must be description-remote or workflow-sha"; exit 1 ;;
+          esac
+
+          if ! out=$(gh api "repos/${UPSTREAM}/releases/latest" --jq .tag_name 2>&1); then
+            if grep -q 'HTTP 404' <<<"$out"; then
+              echo "::notice::${UPSTREAM} has no published release yet"
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "$out"
+            exit 1
+          fi
+          tag=$out
+          if [[ ! $tag =~ ^v?[0-9][0-9A-Za-z._-]*$ ]]; then
+            echo "::error::Unexpected release tag: ${tag}"
+            exit 1
+          fi
+
+          if [ "$PIN_TYPE" = description-remote ]; then
+            [ -f DESCRIPTION ] || { echo "::error::No DESCRIPTION file"; exit 1; }
+            current=$(sed -nE "s#.*${UPSTREAM}@([^[:space:],]+).*#\1#p" DESCRIPTION | head -n 1)
+            [ -n "$current" ] || { echo "::error::No ${UPSTREAM}@<tag> pin in DESCRIPTION"; exit 1; }
+          else
+            mapfile -d '' files < <(find .github -type f \( -name '*.yaml' -o -name '*.yml' \) -print0)
+            [ "${#files[@]}" -gt 0 ] || { echo "::error::No workflow files under .github"; exit 1; }
+            pins=$(grep -hE "uses:[[:space:]]*${UPSTREAM}/[^@[:space:]]+@[0-9a-f]{40}" "${files[@]}" || true)
+            [ -n "$pins" ] || { echo "::error::No ${UPSTREAM} pins under .github"; exit 1; }
+            current=$(sed -nE 's/.*@[0-9a-f]{40}[[:space:]]+#[[:space:]]*(v?[0-9][0-9A-Za-z._-]*).*/\1/p' <<<"$pins" | sort -V | tail -n 1)
+          fi
+
+          # Compare without a leading v so a pin and a tag that differ only in prefix agree.
+          if [ "${current#v}" = "${tag#v}" ]; then
+            echo "Already on ${tag}"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "$current" ] && [ "$(printf '%s\n%s\n' "${current#v}" "${tag#v}" | sort -V | tail -n 1)" != "${tag#v}" ]; then
+            echo "::notice::Latest release ${tag} is older than the pin ${current}; not downgrading"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$PIN_TYPE" = description-remote ]; then
+            sed -i -E "s#(${UPSTREAM}@)[^[:space:],]+#\1${tag}#" DESCRIPTION
+          else
+            sha=$(gh api "repos/${UPSTREAM}/commits/${tag}" --jq .sha)
+            [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Could not resolve ${tag} to a commit"; exit 1; }
+            sed -i -E "s|(uses:[[:space:]]*${UPSTREAM}/[^@[:space:]]+@)[0-9a-f]{40}([[:space:]]+#.*)?\$|\1${sha} # ${tag}|" "${files[@]}"
+          fi
+
+          if git diff --quiet; then
+            echo "::error::Pins matched but nothing changed"
+            exit 1
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the bump PR
+        if: steps.bump.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BUMP_PAT }}
+          UPSTREAM: ${{ inputs.upstream }}
+          PIN_TYPE: ${{ inputs.pin-type }}
+          BASE: ${{ inputs.base }}
+          TAG: ${{ steps.bump.outputs.tag }}
+          CURRENT: ${{ steps.bump.outputs.current }}
+        run: |
+          set -euo pipefail
+          name=${UPSTREAM#*/}
+          name=${name,,}
+          branch="chore/bump-${name}"
+          if [ "$PIN_TYPE" = description-remote ]; then
+            title="build(deps): bump ${name} pin to ${TAG}"
+          else
+            title="ci: bump ${name} pins to ${TAG}"
+          fi
+
+          # A PR for this exact bump (same title, so same release) in any state means the
+          # work is done or was declined on purpose: no push, no new PR, even if base moved.
+          export PR_TITLE="$title"
+          done_pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --base "$BASE" --state all \
+            --json number,title --jq '.[] | select(.title == env.PR_TITLE) | .number' | head -n 1)
+          if [ -n "$done_pr" ]; then
+            echo "PR #${done_pr} already covers ${TAG}; nothing to do"
+            exit 0
+          fi
+
+          bot_email="41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "$bot_email"
+          git checkout -B "$branch"
+          git add -u
+          git commit -m "$title"
+          gh auth setup-git
+
+          # One branch per upstream, so a newer release replaces an unmerged bump instead of
+          # opening a second PR. The branch is rewritten only when its tip is this bot's own
+          # commit; a commit added by anyone else is left alone. The lease is that tip.
+          expected=""
+          skip_push=false
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            git fetch --quiet --depth=1 origin "refs/heads/${branch}"
+            expected=$(git rev-parse FETCH_HEAD)
+            if [ "$(git log -1 --format=%ae FETCH_HEAD)" != "$bot_email" ]; then
+              echo "::notice::${branch} has commits that are not from this workflow; leaving it as is"
+              exit 0
+            fi
+            # The branch already carries this release (an earlier run pushed, then failed
+            # before opening the PR): keep it instead of rebuilding it on a moved base.
+            if [ "$(git log -1 --format=%s FETCH_HEAD)" = "$title" ]; then
+              skip_push=true
+            fi
+          fi
+          if [ "$skip_push" = false ]; then
+            git push --force-with-lease="refs/heads/${branch}:${expected}" origin "HEAD:refs/heads/${branch}"
+          fi
+
+          {
+            printf 'Automated by `track-release-pr`.\n\n'
+            printf '%s published **%s** ([release notes](https://github.com/%s/releases/tag/%s)); this repo was on `%s`.\n' \
+              "$UPSTREAM" "$TAG" "$UPSTREAM" "$TAG" "$CURRENT"
+            if [ -n "$CURRENT" ] && [ "$(sed -E 's/^v?([0-9]+).*/\1/' <<<"$TAG")" != "$(sed -E 's/^v?([0-9]+).*/\1/' <<<"$CURRENT")" ]; then
+              printf '\n**Major version change:** read the release notes before merging.\n'
+            fi
+            printf '\nReview the checks, then merge to adopt.\n'
+          } > "$RUNNER_TEMP/bump-pr.md"
+
+          existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --base "$BASE" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$RUNNER_TEMP/bump-pr.md"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base "$BASE" --head "$branch" \
+              --title "$title" --body-file "$RUNNER_TEMP/bump-pr.md"
+          fi
