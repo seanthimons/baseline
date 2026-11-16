@@ -176,7 +176,7 @@ fixing.
 - Branch names follow Conventional Branch: `type/description`, lowercase,
   hyphen-separated. Prefixes: `feat/`, `feature/`, `fix/`, `bugfix/`,
   `hotfix/`, `release/`, `chore/`, `ci/`, `docs/`, `refactor/`, `test/`.
-- Trunks are `main`, `master`, and `develop`; do not prefix them.
+- Trunks are `main`, `master`, `develop`, and `staging` (if the repo uses one); do not prefix them.
 - Put issue ids in the description: `fix/issue-123-api-timeout`.
 - Hard block: no agent, assistant, model, or AI source names in branch
   names (`codex/`, `claude/`, `ai/`, `copilot/`, `cursor/`, `chatgpt`, `gpt`,
