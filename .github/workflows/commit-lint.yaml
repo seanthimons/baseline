@@ -1,5 +1,6 @@
 # Reusable workflow: lint PR commit subjects and PR title (Conventional Commits)
-# and the head branch name (Conventional Branch, no agent/model tokens).
+# and the head branch name (Conventional Branch, no agent/model tokens; main, master,
+# develop, and staging are allowed as is).
 # Caller permissions: contents: read. Secrets: none.
 # Trigger from pull_request only. Example caller: templates/workflows/commit-lint.yaml
 name: Commit Lint
@@ -43,7 +44,7 @@ jobs:
         run: |
           subject_re="^(${TYPES})(\((${SCOPE_REGEX})\))?!?: .+"
           branch_re='^(feature|feat|bugfix|fix|hotfix|release|chore|ci|docs|refactor|test)/[a-z0-9._-]+$'
-          trunk_re='^(main|master|develop)$'
+          trunk_re='^(main|master|develop|staging)$'
           agent_re='(^|[/._-])(codex|claude|copilot|cursor|chatgpt|gpt|openai|anthropic|gemini|llama|mistral|grok|qwen|deepseek|llm|ai)([/._-]|$)'
           is_bot() { [ "$1" = 'github-actions[bot]' ] || [ "$1" = 'dependabot[bot]' ]; }
           bad=()
@@ -73,7 +74,7 @@ jobs:
             echo "Commit subjects and PR title: <type>[(scope)][!]: <description>"
             echo "  type:  ${TYPES}"
             echo "  scope: ${SCOPE_REGEX}"
-            echo "Branch: main|master|develop, or <feature|feat|bugfix|fix|hotfix|release|chore|ci|docs|refactor|test>/<lowercase-words>"
+            echo "Branch: main|master|develop|staging, or <feature|feat|bugfix|fix|hotfix|release|chore|ci|docs|refactor|test>/<lowercase-words>"
             echo "  and no agent/model names (codex, claude, gpt, ai, ...) as words."
             exit 1
           fi
