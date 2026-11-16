@@ -135,7 +135,7 @@ Config files:
 
 | File | Applies to |
 |---|---|
-| `.github/dependabot.yml` | every repo (add `npm` and `cargo` entries locally where needed) |
+| `.github/dependabot.yml` | every repo (add `npm` and `cargo` entries locally where needed). Keep the template's `cooldown` block on every update entry: an older config without it fails `lint-workflows` (zizmor `dependabot-cooldown`, medium) on every PR that touches `.github/`, including Dependabot's own. |
 | `.gitattributes` | every repo |
 | `.gitleaks.toml` | every repo; each repo keeps its own allowlist entries |
 | `air.toml` | R repos. baseline's template is canonical, and `boosterpak::init()` writes an identical default (plus an ownership marker line) when its setting asks for one and no `air.toml` exists, so the two must stay the same: a PR that changes this template says that boosterpak's default needs the same change. Neither tool overwrites an existing file automatically. |
