@@ -94,14 +94,15 @@ All R setup steps explicitly set `cran: https://p3m.dev/cran/latest` and retain
 set `RENV_CONFIG_PAK_ENABLED=true`, including the optional renv branch of the
 R setup composite and Quarto builds. Package dependency jobs already install
 with pak via setup-r-dependencies. Existing renv lockfile repositories are
-preserved. For local settings, use the paired `templates/config/.Rprofile` and
-`setup.R` templates. CI skips automatic project profiles and can opt into the
+preserved. For local settings, merge `templates/config/.Rprofile`; for renv
+projects, run `boosterpak::write_portable_setup()` (boosterpak 0.11.0 or newer,
+installed from GitHub). CI skips automatic project profiles and can opt into the
 explicit portable setup command below.
 
 ### Portable renv setup
 
 `r-renv-tests` and `quarto-pages` accept `portable-setup` (boolean, default
-`false`). After copying `templates/config/setup.R` and `.Rprofile`, enable it to
+`false`). After running `boosterpak::write_portable_setup()` in the project, enable it to
 restore through boosterpak's environment-only tooling. The project must commit
 `renv.lock` and `renv/activate.R`. Quarto uses locked R when this input and
 `needs-r` are true. The R setup composite has the same opt-in alongside
@@ -109,5 +110,4 @@ restore through boosterpak's environment-only tooling. The project must commit
 
 The portable step exports its prepared library for following R processes.
 Existing callers retain setup-renv by default. R setup steps keep P3M primary
-and include Cloud CRAN as a binary fallback; portable restores carry that
-fallback into renv's repository override without changing package version pins.
+and include Cloud CRAN as a binary fallback, without changing package version pins.

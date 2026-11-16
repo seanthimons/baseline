@@ -23,7 +23,7 @@ Two rules keep the line sharp:
 - **The laptop test.** If an R fix in baseline would also be needed on a laptop, it belongs in boosterpak. A CI runner is just another new machine.
 - **Values, not branches.** baseline may copy a value from boosterpak (for example the P3M URL) but never a branch of logic (for example "if Linux, rewrite to manylinux").
 
-boosterpak will generate the portable setup files, the way renv generates `renv/activate.R`, and baseline will stop authoring them. Two templates are exceptions to the rules above today, because baseline currently authors them: `templates/config/setup.R` (platform URL rewriting and a pinned boosterpak SHA) and the offline loader in `templates/config/.Rprofile`. They are described under [R repositories and cross-platform installs](#r-repositories-and-cross-platform-installs) and are not to be extended.
+boosterpak generates the portable setup files, the way renv generates `renv/activate.R`; baseline does not author them. Run `boosterpak::write_portable_setup()` (boosterpak 0.11.0 or newer, installed from GitHub) in a renv project. It writes a root `setup.R` that pins the boosterpak commit that generated it, and a managed block in `.Rprofile` (`# BEGIN boosterpak portable startup` to `# END boosterpak portable startup`) that replaces renv's `source("renv/activate.R")` line. See [R repositories and cross-platform installs](#r-repositories-and-cross-platform-installs).
 
 ### The contract
 
@@ -41,13 +41,13 @@ The `portable-setup: true` input of `r-renv-tests.yaml`, `quarto-pages.yaml` and
 A new project adopts in three steps. This is a recommendation, not a dependency.
 
 1. **baseline hygiene first, before the first commit.** `.gitignore`, `.gitattributes`, `.gitleaks.toml`, `dependabot.yml`, and the callers every repo takes: commit-lint, gitleaks and lint-workflows. These are worth most before any history exists. For example, [boosterpak's own adoption PR](https://github.com/seanthimons/boosterpak/pull/41) had to renormalize line endings in two files because `.gitattributes` arrived late.
-2. **boosterpak second.** It sets up the R environment: packs, restores and portable lockfiles. For a portable renv project it also provides the portable setup files, `setup.R` and the offline loader. Today those come from this repo's `templates/config/setup.R` and `.Rprofile`; boosterpak's generator will replace them.
+2. **boosterpak second.** It sets up the R environment: packs, restores and portable lockfiles. For a portable renv project it also generates the portable setup files, `setup.R` and the startup block in `.Rprofile`, with `boosterpak::write_portable_setup()` (boosterpak 0.11.0 or newer, installed from GitHub).
 3. **baseline's R callers last.** Which ones apply depends on the project type that step 2 established (see [Which workflows apply to which project](#which-workflows-apply-to-which-project)), and `portable-setup: true` needs the `setup.R` from step 2.
 
 Neither tool needs the other installed: boosterpak works in a project with no repo, and baseline works in a repo with no R. Only `portable-setup: true` depends on step 2's `setup.R`. What makes either order safe is that every file, or managed block within a file, has one owner:
 
 - baseline owns the hygiene files and `.github/`.
-- boosterpak owns its own project files and its managed block in `.Rprofile`. `setup.R` and the offline loader are on boosterpak's side too; until its generator replaces them, baseline's transitional templates supply them.
+- boosterpak owns its own project files and its managed block in `.Rprofile`. `setup.R` is boosterpak's too: it generates the file.
 - `.Rprofile` otherwise belongs to the project: baseline's template is merged by hand and never replaces the file. `air.toml` is kept by whichever tool wrote it first, and neither tool overwrites an existing one automatically.
 
 Neither tool overwrites a file or block the other owns.
@@ -140,7 +140,6 @@ Config files:
 | `.gitleaks.toml` | every repo; each repo keeps its own allowlist entries |
 | `air.toml` | R repos. baseline's template is canonical, and `boosterpak::init()` writes an identical default (plus an ownership marker line) when its setting asks for one and no `air.toml` exists, so the two must stay the same: a PR that changes this template says that boosterpak's default needs the same change. Neither tool overwrites an existing file automatically. |
 | `.Rprofile` | R repos: merge P3M and renv/pak defaults into the existing profile |
-| `setup.R` | renv projects: one-command portable restore, with pinned boosterpak tooling |
 | `codecov.yml` | repos that enable Codecov in `test-coverage.yaml` |
 
 ## Required secrets
@@ -197,16 +196,16 @@ renv restores enable pak with `RENV_CONFIG_PAK_ENABLED=true`; package dependency
 workflows already use pak through setup-r-dependencies.
 
 For local development, merge `templates/config/.Rprofile` into the repo's existing
-`.Rprofile`, preserving other project startup code. For renv projects, copy
-`setup.R` too and replace the existing `source("renv/activate.R")` line with the
-template's offline loader. Keep `renv/activate.R` for the explicit setup command.
-The template sets CRAN while preserving other named repositories, enables pak,
-and loads only a library prepared by setup for the current OS and R minor version.
+`.Rprofile`, preserving other project startup code. The template sets CRAN while
+preserving other named repositories and enables pak. For renv projects, run
+`boosterpak::write_portable_setup()` (boosterpak 0.11.0 or newer, installed from GitHub) to generate
+`setup.R` and the managed startup block that replaces the
+`source("renv/activate.R")` line. Keep `renv/activate.R` for the explicit setup
+command.
 Use the portable P3M URL in shared configuration, rather than copying a Linux
 distribution-specific binary URL or a machine's library/cache paths. Existing
 lockfile repositories and pinned versions still apply during renv restore. The CI
-repository defaults do not rewrite lockfiles; the explicit setup command below
-repairs platform metadata while preserving versions. See the
+repository defaults do not rewrite lockfiles. See the
 [renv configuration reference](https://rstudio.github.io/renv/reference/config.html)
 for pak configuration and option precedence.
 
@@ -215,28 +214,18 @@ SHA pins after merge. Local defaults require merging the copied template too;
 CI deliberately skips project `.Rprofile` files. No downstream files are changed
 by updating baseline alone.
 
-For a renv project that needs portable setup without capability packs, copy
-`templates/config/setup.R` to the project root. Run `Rscript --vanilla setup.R`
-on each new machine (Windows, macOS, or Linux). It installs a pinned boosterpak
-commit into the project library and calls `boosterpak::restore_project()`;
-this repairs existing Linux PPM lockfile metadata before restoring exact
-versions. For compiled pins absent from the latest binary index, restore adds a
-dated P3M snapshot for that operation. To prohibit a source build for a heavy
-package, customize the call as
-`boosterpak::restore_project(require_binaries = "duckdb")`.
-No `boosters.toml`, packs, or startup attachments are created. Keep
-`renv/activate.R` and `renv.lock` committed. The script pins the setup tool
-independently from the application's lockfile; update that SHA deliberately.
-Setup writes machine-local activation data under `renv/local/`; keep that
-directory gitignored. Before setup, opening a clone only prints the setup command.
-After setup, opening it loads the prepared library without bootstrapping renv or
-restoring packages. A different OS or R minor version requires setup again.
+For a renv project that needs portable setup without capability packs, run
+`boosterpak::write_portable_setup()` (boosterpak 0.11.0 or newer, installed from
+GitHub). Run `Rscript --vanilla setup.R` on each new machine (Windows, macOS, or
+Linux). boosterpak owns the file's behavior; baseline relies only on the
+contract above.
+Keep `renv/activate.R` and `renv.lock` committed.
 
 After deliberate dependency changes, use `boosterpak::snapshot_project()` to
 save a portable lockfile. A plain `renv::snapshot()` bypasses cleanup.
 
 For reusable `r-renv-tests` and `quarto-pages` jobs, opt into this same restore
-path with `portable-setup: true` after copying the paired templates and pinning a
+path with `portable-setup: true` after running `boosterpak::write_portable_setup()` and pinning a
 baseline version that supports the input. The R setup composite supports the
 same input with `use-renv: true`; set `r-version: renv` there for locked R.
 Following CI steps receive the prepared library automatically. Existing callers

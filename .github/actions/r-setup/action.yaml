@@ -16,7 +16,7 @@ inputs:
     description: "'true' restores renv.lock via setup-renv instead of setup-r-dependencies."
     default: "false"
   portable-setup:
-    description: "With use-renv, restore with committed setup.R and offline .Rprofile templates."
+    description: "With use-renv, restore with the setup.R that boosterpak::write_portable_setup() generates."
     default: "false"
   quarto:
     description: "'true' installs Quarto."
