@@ -11,7 +11,7 @@ on:
         type: string
         default: ubuntu-latest
       portable-setup:
-        description: Restore with the committed setup.R and offline .Rprofile templates.
+        description: Restore with the setup.R that boosterpak::write_portable_setup() generates.
         type: boolean
         default: false
       test-dir:

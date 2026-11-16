@@ -17,7 +17,7 @@ on:
         type: string
         default: _site
       portable-setup:
-        description: Restore with the committed setup.R and offline .Rprofile templates when needs-r is true.
+        description: Restore with the setup.R that boosterpak::write_portable_setup() generates when needs-r is true.
         type: boolean
         default: false
       needs-r:

@@ -45,10 +45,10 @@ notification; one bad query ends the session. -->
 This section applies to the baseline repo only. Delete it when adopting this file elsewhere. The contract and its reasons are in README.md, "Scope and boundary with boosterpak".
 
 - Where code runs decides who owns it. baseline owns policy and wiring for a repository: workflows, pins, static config templates. Anything that needs R logic, and R unit tests, to be correct belongs in boosterpak.
-- Laptop test: before adding or changing R logic here, ask whether the same fix would be needed on a laptop. If so, it belongs in boosterpak. Report it for boosterpak; do not fix it here, except repairs to the transitional files below.
+- Laptop test: before adding or changing R logic here, ask whether the same fix would be needed on a laptop. If so, it belongs in boosterpak. Report it for boosterpak; do not fix it here.
 - Copy values, never branches. A value such as the P3M URL may be copied from boosterpak. A branch such as "if Linux, rewrite to manylinux" may not.
 - Read only the four-point contract in README.md. Never learn about packs, `boosters.toml`, marker files, or boosterpak internals in workflows or templates.
-- `templates/config/setup.R` and the offline loader in `templates/config/.Rprofile` break these rules today and are transitional. Repair them when broken, including updating the pinned boosterpak SHA, but do not add behavior to them.
+- baseline authors no portable-setup files. For a renv project, run `boosterpak::write_portable_setup()` (boosterpak 0.11.0 or newer, installed from GitHub). `templates/config/.Rprofile` holds only the P3M and renv/pak defaults.
 - Adoption order for a new project is a recommendation: baseline hygiene first (before the first commit), then boosterpak, then baseline's R callers. See README.md, "Adoption order for a new project". Every file, or managed block within a file, has one owner: never overwrite a file or block the other tool owns.
 
 ## Layout
