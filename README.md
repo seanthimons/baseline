@@ -76,9 +76,9 @@ The composite actions are for project-specific workflows in caller repos (for ex
 2. Copy each caller stub from `templates/workflows/` on `main` into `<repo>/.github/workflows/`. Keep the `.yaml` extension. Do not copy from inside a release tag: a release is tagged before its stubs are repinned, so the stubs in the `v2.0.0` tag still pin `v1.5.0`. Check the pin comment of what you copied.
 3. Pin the `uses:` ref to a full commit SHA of a baseline release tag, with the tag as a trailing comment:
    ```yaml
-   uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@<40-char-sha> # v2.0.0
+   uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@<40-char-sha> # v2.2.0
    ```
-   Get the SHA with `git ls-remote https://github.com/seanthimons/baseline refs/tags/v2.0.0`.
+   Get the SHA with `git ls-remote https://github.com/seanthimons/baseline refs/tags/v2.2.0`.
 4. Edit the caller's triggers, branch filters, and inputs. Pass secrets explicitly by name. Do not use `secrets: inherit`.
 5. Grant permissions on the calling job only. A callee cannot escalate beyond what the caller grants. Keep the caller's top-level `permissions: contents: read`.
 6. Copy the config files you need from `templates/config/` (`.gitignore` there is the root-local pattern: ignores every root dot-file, dot-directory and `*.md` without naming agent files, with the usual tracked ones such as `.github/`, `README.md` and `NEWS.md` already opted in; opt anything else in with `!/<name>`; it also carries the GitHub R defaults, and Python repos append `.gitignore.python`) to the repo root (`dependabot.yml` and `pull_request_template.md` go in `.github/`).
@@ -95,7 +95,7 @@ Use a long-lived `staging` branch to batch feature PRs, so the expensive checks 
 - Branch protection: on `main`, require the expensive checks plus `Commit Lint / Conventional Commits` and `Gitleaks / Detect secrets`. On `staging`, require only `Commit Lint / Conventional Commits` and `Gitleaks / Detect secrets`; never require R CMD check or the renv tests there, because they never report on PRs into `staging`. Linting feature PR titles on the way in matters: a bad subject that lands in `staging` blocks the batch PR.
 - Squash feature PRs into `staging`, but merge `staging` into `main` with a merge commit, not a squash. Release tooling reads the Conventional Commit subjects since the last tag, and a squash collapses them into one. Set the merge commit message to the pull request title so it is itself a Conventional Commit, and leave "Require linear history" off on `main`.
 - Release and dependency-bump PRs that target `main` directly put `staging` behind `main`. Merge `main` back into `staging` afterwards.
-- Head branch names `staging`, `main`, `master`, and `develop` pass `commit-lint` as is. That needs a baseline release newer than v2.0.0; until the stub's pin moves past it, the `staging` -> `main` PR fails the branch-name check.
+- Head branch names `staging`, `main`, `master`, and `develop` pass `commit-lint` as is. That needs baseline v2.2.0 or newer; a caller pinned to an older release fails the branch-name check on the `staging` -> `main` PR.
 
 ## Versioning
 
