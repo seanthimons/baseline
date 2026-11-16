@@ -85,6 +85,18 @@ The composite actions are for project-specific workflows in caller repos (for ex
 7. Delete the repo's old local copy of each workflow you replaced.
 8. Update branch protection. Required status check names change to `caller-job / callee-job (matrix)`, for example `R CMD check / ubuntu-latest (release)`. Change them in the same PR, or PRs block on a check that never reports. `docs-check.yaml` only blocks merge once `Docs Check / Docs confirmation` is a required check.
 
+## Optional: staging branch
+
+Use a long-lived `staging` branch to batch feature PRs, so the expensive checks run once per batch instead of once per PR.
+
+- Feature PRs target `staging`. A single `staging` -> `main` PR ships the batch.
+- `r-cmd-check.yaml` and `r-renv-tests.yaml` callers filter `pull_request` to `branches: [main]`, so they run on the `staging` -> `main` PR and not on feature PRs. `test-coverage.yaml` already does this. `pkgdown.yaml` and `quarto-pages.yaml` still build on every PR; add the same filter to their callers if that is too slow.
+- `commit-lint` and `gitleaks` stay unfiltered, so they cover every PR into `staging`. `lint-workflows` has no branch filter either (it only runs when a PR touches `.github/`). Add `staging` to the gitleaks caller's `push.branches` (the template lists it).
+- Branch protection: on `main`, require the expensive checks plus `Commit Lint / Conventional Commits` and `Gitleaks / Detect secrets`. On `staging`, require only `Commit Lint / Conventional Commits` and `Gitleaks / Detect secrets`; never require R CMD check or the renv tests there, because they never report on PRs into `staging`. Linting feature PR titles on the way in matters: a bad subject that lands in `staging` blocks the batch PR.
+- Squash feature PRs into `staging`, but merge `staging` into `main` with a merge commit, not a squash. Release tooling reads the Conventional Commit subjects since the last tag, and a squash collapses them into one. Set the merge commit message to the pull request title so it is itself a Conventional Commit, and leave "Require linear history" off on `main`.
+- Release and dependency-bump PRs that target `main` directly put `staging` behind `main`. Merge `main` back into `staging` afterwards.
+- Head branch names `staging`, `main`, `master`, and `develop` pass `commit-lint` as is. That needs a baseline release newer than v2.0.0; until the stub's pin moves past it, the `staging` -> `main` PR fails the branch-name check.
+
 ## Versioning
 
 - Releases are tagged `vX.Y.Z`. Patch and minor releases never break callers.

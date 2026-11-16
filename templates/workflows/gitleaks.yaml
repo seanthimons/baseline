@@ -2,8 +2,8 @@ name: Gitleaks
 
 on:
   push:
-    # Add other long-lived branches (for example integration) here.
-    branches: [main, master]
+    # Add other long-lived branches here. staging is listed for repos that use a staging branch.
+    branches: [main, master, staging]
   pull_request:
   schedule:
     # Change the minute per repo to stagger scheduled runs.

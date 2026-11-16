@@ -3,7 +3,10 @@ name: R-CMD-check
 on:
   push:
     branches: [main]
+  # Expensive: PRs into main only. PRs into a staging branch skip it (README, "Optional: staging branch").
+  # Change main to your trunk (for example master) in both filters.
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:

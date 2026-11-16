@@ -50,7 +50,20 @@ with tempfile.TemporaryDirectory() as tmp:
         result = run(['bash', '-eu', '-o', 'pipefail', '-c', script], cwd=tmp, env=env)
         assert result.returncode == expected, (author, subject, result.stdout, result.stderr)
         base = head
+    for head_ref, expected in [('staging', 0), ('staging-x', 1)]:
+        env = dict(os.environ, TYPES='feat|fix|refactor|perf|build|test|ci|docs|style|chore',
+                   SCOPE_REGEX='[A-Za-z0-9_]+', BASE_SHA=base, HEAD_SHA=base,
+                   PR_TITLE='ci: test validation', PR_AUTHOR='test-user', GITHUB_HEAD_REF=head_ref)
+        result = run(['bash', '-eu', '-o', 'pipefail', '-c', script], cwd=tmp, env=env)
+        assert result.returncode == expected, (head_ref, result.stdout, result.stderr)
 print('CI regression checks passed')
+
+# Expensive R checks run only on PRs into main, so PRs into staging skip them.
+for stub in ['r-cmd-check', 'r-renv-tests']:
+    config = yaml.safe_load(Path(f'templates/workflows/{stub}.yaml').read_text())
+    # PyYAML reads the bare key `on` as True.
+    assert config[True]['pull_request'] == {'branches': ['main']}, stub
+print('Staging branch checks passed')
 
 release = yaml.safe_load(Path('.github/workflows/release-r-package.yaml').read_text())
 steps = {s['name']: s for s in release['jobs']['check']['steps']}
