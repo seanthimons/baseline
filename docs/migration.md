@@ -84,7 +84,7 @@ Lint findings (#20): small repos (serapeum, envharmonizer-build, envharmonizer) 
 ## Phase 5: release propagation
 
 - [ ] Create `DISPATCH_PAT` (Contents read/write on the downstream repos only) on each upstream, and `BUMP_PAT` on each downstream repo. Set the `DOWNSTREAM_REPOS` variable on baseline.
-- [ ] Pin the new templates to the release that ships `notify-downstream.yaml` and `track-release-pr.yaml` in a `ci: pin caller stubs` PR; the templates carry `REPLACE_WITH_RELEASE_SHA` until then.
+- [x] Pin the new templates to the release that ships `notify-downstream.yaml` and `track-release-pr.yaml` in a `ci: pin caller stubs` PR (v2.2.0).
 - [ ] **baseline -> downstream**: add the `track-release-pr` caller (`workflow-sha`, event `baseline-release`) to each repo and uncomment the Dependabot `ignore` entry. Add the repo to `DOWNSTREAM_REPOS`.
 - [ ] **ComptoxR -> concert, chorus**: add a `notify` job to ComptoxR's `release.yaml` (event `comptoxr-release`; concert already listens for it). Replace concert's `track-comptoxr-release.yaml` with the `description-remote` caller, and copy it to chorus.
 - [ ] **specmill -> ComptoxR**: same pattern with its own event type, once its release caller carries the notify job.

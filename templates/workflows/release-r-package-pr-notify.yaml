@@ -35,7 +35,7 @@ jobs:
     name: Release
     permissions:
       contents: write
-    uses: seanthimons/baseline/.github/workflows/release-r-package.yaml@0a6e332d70f7a15520c62870221b35ef040ef933 # v2.0.0
+    uses: seanthimons/baseline/.github/workflows/release-r-package.yaml@ad7b0409c5ae8d28f293826fef0819bd74c7b9e0 # v2.2.0
     with:
       release-mode: ${{ inputs.release-mode }}
       version-type: ${{ inputs.version-type }}
@@ -47,7 +47,7 @@ jobs:
     name: Notify downstream
     needs: release
     if: ${{ !inputs.dry-run && inputs.release-mode == 'publish' && vars.DOWNSTREAM_REPOS != '' }}
-    uses: seanthimons/baseline/.github/workflows/notify-downstream.yaml@REPLACE_WITH_RELEASE_SHA # vNEXT
+    uses: seanthimons/baseline/.github/workflows/notify-downstream.yaml@ad7b0409c5ae8d28f293826fef0819bd74c7b9e0 # v2.2.0
     with:
       event-type: REPLACE_WITH_EVENT_TYPE # for example comptoxr-release
       repositories: ${{ vars.DOWNSTREAM_REPOS }}
