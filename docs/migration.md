@@ -91,7 +91,7 @@ Lint findings (#20): small repos (serapeum, envharmonizer-build, envharmonizer) 
   - [ ] scifindeR: [#5](https://github.com/seanthimons/scifindeR/pull/5) is open with green checks.
   - [ ] ComptoxR and serapeum, with the `integration` to `staging` rename: [#46](https://github.com/seanthimons/baseline/issues/46).
   - [ ] chorus, envharmonizer, envharmonizer-build, epaechoverse and treatment: [#47](https://github.com/seanthimons/baseline/issues/47).
-  - [ ] The first release after v2.2.0 is the first real dispatch: confirm a `chore/bump-baseline` PR opens in each repo that has the tracker (the branch is named after the upstream).
+  - [x] The first release after v2.2.0 is the first real dispatch: confirm a `chore/bump-baseline` PR opens in each repo that has the tracker (the branch is named after the upstream). Done with v2.2.1: the notify job reached all 13 repos, and bump PRs opened in boosterpak#51, concert#160, singlehit#53, specmill#324 and seanthimons.github.io#56. The other repos have no tracker yet, so the dispatch did nothing there.
 - [ ] **ComptoxR -> concert, chorus**: set `DISPATCH_PAT` (Contents read/write on concert and chorus) and `DOWNSTREAM_REPOS` on ComptoxR, and add a `notify` job to ComptoxR's `release.yaml` (event `comptoxr-release`; concert already listens for it). Replace concert's `track-comptoxr-release.yaml` with the `description-remote` caller, and copy it to chorus.
 - [ ] **specmill -> ComptoxR**: same pattern with its own event type, once its release caller carries the notify job.
 
