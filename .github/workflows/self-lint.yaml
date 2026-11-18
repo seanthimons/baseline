@@ -5,7 +5,7 @@ name: Self lint
 # before it publishes.
 on:
   pull_request:
-    paths: ['.github/**', 'tests/**', 'templates/config/.gitignore*']
+    paths: ['.github/**', 'tests/**', 'templates/config/.gitignore*', 'templates/config/.pre-commit-config.yaml']
   workflow_dispatch:
   workflow_call:
 

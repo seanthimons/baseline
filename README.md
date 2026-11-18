@@ -40,7 +40,7 @@ The `portable-setup: true` input of `r-renv-tests.yaml`, `quarto-pages.yaml` and
 
 A new project adopts in three steps. This is a recommendation, not a dependency.
 
-1. **baseline hygiene first, before the first commit.** `.gitignore`, `.gitattributes`, `.gitleaks.toml`, `dependabot.yml`, and the callers every repo takes: commit-lint, gitleaks and lint-workflows. These are worth most before any history exists. For example, [boosterpak's own adoption PR](https://github.com/seanthimons/boosterpak/pull/41) had to renormalize line endings in two files because `.gitattributes` arrived late.
+1. **baseline hygiene first, before the first commit.** `.gitignore`, `.gitattributes`, `.gitleaks.toml`, `.pre-commit-config.yaml` (then run `pre-commit install`, so the gitleaks hook checks every commit before it enters history), `dependabot.yml`, and the callers every repo takes: commit-lint, gitleaks and lint-workflows. These are worth most before any history exists. For example, [boosterpak's own adoption PR](https://github.com/seanthimons/boosterpak/pull/41) had to renormalize line endings in two files because `.gitattributes` arrived late.
 2. **boosterpak second.** It sets up the R environment: packs, restores and portable lockfiles. For a portable renv project it also generates the portable setup files, `setup.R` and the startup block in `.Rprofile`, with `boosterpak::write_portable_setup()` (boosterpak 0.11.0 or newer, installed from GitHub).
 3. **baseline's R callers last.** Which ones apply depends on the project type that step 2 established (see [Which workflows apply to which project](#which-workflows-apply-to-which-project)), and `portable-setup: true` needs the `setup.R` from step 2.
 
@@ -63,7 +63,7 @@ Neither tool overwrites a file or block the other owns.
   dependabot.yml      bumps this repo's own action pins
 templates/
   workflows/          caller stubs to copy into <repo>/.github/workflows/
-  config/             dependabot.yml, .gitleaks.toml, air.toml, codecov.yml, .gitattributes, .gitignore, .gitignore.python
+  config/             dependabot.yml, .gitleaks.toml, .pre-commit-config.yaml, air.toml, codecov.yml, .gitattributes, .gitignore, .gitignore.python
 examples/             standalone workflows to copy and edit (shinylive Pages deploy)
 docs/                 audit report, raw audit data, migration plan
 ```
@@ -138,6 +138,7 @@ Config files:
 | `.github/dependabot.yml` | every repo (add `npm` and `cargo` entries locally where needed). Keep the template's `cooldown` block on every update entry: an older config without it fails `lint-workflows` (zizmor `dependabot-cooldown`, medium) on every PR that touches `.github/`, including Dependabot's own. |
 | `.gitattributes` | every repo |
 | `.gitleaks.toml` | every repo; each repo keeps its own allowlist entries |
+| `.pre-commit-config.yaml` | every repo: a gitleaks hook that scans staged changes before each commit. It is inactive until `pre-commit install` runs in each clone. Refresh the pin with `pre-commit autoupdate --freeze`. `git commit --no-verify` skips it, so the gitleaks workflow stays the backstop. |
 | `air.toml` | R repos. baseline's template is canonical, and `boosterpak::init()` writes an identical default (plus an ownership marker line) when its setting asks for one and no `air.toml` exists, so the two must stay the same: a PR that changes this template says that boosterpak's default needs the same change. Neither tool overwrites an existing file automatically. |
 | `.Rprofile` | R repos: merge P3M and renv/pak defaults into the existing profile |
 | `codecov.yml` | repos that enable Codecov in `test-coverage.yaml` |

@@ -68,7 +68,7 @@ Runs actionlint and zizmor over the caller's `.github/workflows/`. zizmor flags 
 
 ## `self-lint.yaml`
 
-Not reusable by other repos. Runs `lint-workflows.yaml` and the workflow regression tests against this repository on pull requests that touch `.github/**` or `tests/**`. `self-release.yaml` calls it on every push to `main`.
+Not reusable by other repos. Runs `lint-workflows.yaml` and the workflow regression tests against this repository on pull requests that touch `.github/**`, `tests/**`, `templates/config/.gitignore*` or `templates/config/.pre-commit-config.yaml`. `self-release.yaml` calls it on every push to `main`.
 
 ## `self-gitleaks.yaml`
 

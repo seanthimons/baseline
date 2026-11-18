@@ -1,6 +1,7 @@
 """Run from the repo root: python3 tests/check-ci.py (requires PyYAML)."""
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import yaml
@@ -313,6 +314,16 @@ assert callee_job['permissions'].items() <= stub['jobs']['gitleaks']['permission
 self_gitleaks = yaml.safe_load(Path('.github/workflows/self-gitleaks.yaml').read_text())
 assert self_gitleaks['jobs']['gitleaks']['permissions'] == callee_job['permissions']
 print('Gitleaks permission pair and disabled comments checks passed')
+
+# The pre-commit template pins gitleaks by full SHA with a tag comment, in the form `pre-commit autoupdate --freeze`
+# writes (two spaces, `# frozen: vX.Y.Z`), so a refresh leaves the format intact.
+hook_text = Path('templates/config/.pre-commit-config.yaml').read_text()
+hook_config = yaml.safe_load(hook_text)
+assert [r['repo'] for r in hook_config['repos']] == ['https://github.com/gitleaks/gitleaks']
+assert re.fullmatch(r'[0-9a-f]{40}', hook_config['repos'][0]['rev'])
+assert re.search(r'rev: [0-9a-f]{40}\s+# (frozen: )?v\d+\.\d+\.\d+\n', hook_text)
+assert [h['id'] for h in hook_config['repos'][0]['hooks']] == ['gitleaks']
+print('Pre-commit gitleaks template checks passed')
 
 # Release propagation: notify-downstream sends one dispatch per repo; track-release-pr rewrites
 # pins to the upstream's latest release and never downgrades. Network calls are mocked.
