@@ -35,12 +35,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The only R here is the profile check in tests/check-ci.py, which needs base R only. setup-r also
+      # installs devscripts and its recommends on Linux, a few hundred packages that exceeded this job's
+      # 10 minute limit on a slow runner mirror, so install just the interpreter.
       - name: Set up R for profile checks
-        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
-        with:
-          cran: https://p3m.dev/cran/latest
-          extra-repositories: https://cloud.r-project.org
-          use-public-rspm: true
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends r-base-core
       - name: Check workflow behavior
         run: |
           python3 -m pip install PyYAML==6.0.2
