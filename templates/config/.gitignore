@@ -29,6 +29,31 @@
 !/SECURITY.md
 # Shared repo: opt agent instruction files in with !/<name>. Sensitive repo: leave them ignored.
 
+# Secrets and credentials at any depth. The root rules above reach only the repo root; these catch
+# nested copies such as sub/.env.local or config/credentials.json. `.env.*` also hides .env.sample,
+# .env.template and .env.dist: opt those in with a later !.env.sample. A file these patterns hide that
+# a repo really tracks (a public *.pem, a Keynote *.key) needs its own !<path> line. A directory rule
+# (`secrets/`, `.aws/`) cannot be undone per file: re-include the directory first (!tests/_snaps/secrets/).
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.aws/
+.netrc
+.git-credentials
+secrets/
+credentials.json
+client_secret*.json
+service-account*.json
+mcp.json
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
 # --- R defaults ---------------------------------------------------------------
 # Source: https://github.com/github/gitignore/blob/8ba69a4220df77b696fe97b60fb70eb668fb00e1/R.gitignore (CC0-1.0)
 # Local changes: the `docs/` rule (pkgdown site) is removed because it hides committed
