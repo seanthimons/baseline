@@ -15,13 +15,20 @@ tracked = [
     'docs/nested/page.md', 'lib/helpers.R', 'build/out.txt', 'site/index.html', 'po/R-pkg.pot',
     '.github/workflows/ci.yaml', '.specmill/manifest.json', '.gitignore', '.gitattributes',
     '.gitleaks.toml', '.gitleaksignore', '.Rbuildignore', '.Rprofile', '.Renviron.example', '.lintr',
-    '.nojekyll', '.pre-commit-config.yaml',
+    '.nojekyll', '.pre-commit-config.yaml', '.env.example', 'sub/.env.example',
+    '.dev.vars.example', 'sub/.dev.vars.example',
 ]
 ignored = [
     'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'HANDOFF.md', 'notes.md', '.claude/settings.json',
     '.planning/x', '.beans/x', '.beans.yml', '.worktrees/x', '.cursorrules', '.directory',
     '.Renviron', '.env', '.Rhistory', '.RData', '.Rproj.user/x', '.httr-oauth', 'vignettes/a.html',
     'rsconnect/x', 'src/foo.o', 'pkg_0.1.tar.gz', 'foo.Rcheck/x',
+    # Secrets are ignored at any depth, not only at the repo root.
+    '.env.local', 'sub/.env.local', 'sub/.env.production', 'sub/.dev.vars', 'sub/.dev.vars.local',
+    'sub/.aws/credentials', 'sub/.netrc', 'sub/.git-credentials', 'secrets/token.txt', 'config/secrets/token.txt',
+    'credentials.json', 'config/credentials.json', 'client_secret_123.json', 'service-account-prod.json',
+    'mcp.json', 'sub/mcp.json', 'key.pem', 'sub/tls.key', 'sub/cert.p12', 'sub/cert.pfx', 'sub/id_rsa',
+    'sub/id_ed25519',
 ]
 python_ignored = [
     '__pycache__/x.pyc', 'build/out.txt', 'dist/x.whl', 'lib/helpers.py', 'site/index.html', '.venv/x',
