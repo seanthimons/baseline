@@ -3,8 +3,8 @@
 Repo rules for coding agents. This file stands alone: it restates the global
 rules so a clone works without the global agent files in your home directory.
 To adopt it: fill every `FILL` comment, delete sections marked for other
-project types (`IF SHINY`, `IF PACKAGE`, `IF PIPELINE`, `IF BASELINE`), and
-replace the `example from <repo>` comments with this repo's real rules or
+project types (`IF SHINY`, `IF PACKAGE`, `IF PIPELINE`, `IF BASELINE`,
+`IF TOOLING`), and replace the `example from <repo>` comments with this repo's real rules or
 delete them.
 
 - Decide once whether `AGENTS.md` and `CLAUDE.md` are tracked. Shared repo:
@@ -370,6 +370,20 @@ bd update <id> --claim; bd close <id>; bd dolt push. -->
 - Close an issue only after its programmatic verification passes, or after
   user acceptance when none is specified. Record the evidence first.
 - Confirm which issue is meant when a number is ambiguous.
+
+### Cross-repo work (IF TOOLING)
+
+Issues from all tooling repos are tracked in one GitHub Project:
+https://github.com/users/seanthimons/projects/4
+
+- Before starting an issue, check whether it has a `Chain` value and a
+  `Step` number, and whether it is "blocked by" another issue. Do not start
+  a step while a lower step in the same chain is still open; say so instead.
+- When work in one repo depends on a release of another, file the issue in
+  each repo, give them the same `Chain` and ordered `Step` numbers, and add
+  a "blocked by" link.
+- Milestones stay per repo. The project does not replace them.
+- `gh project` needs the `project` token scope.
 
 ## Session end
 
