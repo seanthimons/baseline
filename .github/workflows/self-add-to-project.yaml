@@ -1,0 +1,19 @@
+# Add this repository's new issues to the cross-repo Tooling project with the shared
+# add-to-project workflow.
+name: Self add to project
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  add:
+    name: Add to project
+    uses: ./.github/workflows/add-to-project.yaml
+    with:
+      project-url: https://github.com/users/seanthimons/projects/4
+    secrets:
+      ADD_TO_PROJECT_PAT: ${{ secrets.ADD_TO_PROJECT_PAT }}

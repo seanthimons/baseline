@@ -66,6 +66,10 @@ Runs testthat for R projects that are not packages, against the environment in `
 
 Runs actionlint and zizmor over the caller's `.github/workflows/`. zizmor flags `${{ inputs.* }}` or `${{ github.event.* }}` interpolated into `run:` scripts, missing permissions, and unpinned actions. Inputs: none. Secrets: none. Caller permissions: `contents: read`. Trigger it on changes to `.github/**`. See file header for the authoritative input list.
 
+## `add-to-project.yaml`
+
+Adds the issue or pull request that triggered the caller to a GitHub Project with `actions/add-to-project`. A project's built-in auto-add workflow covers one repository; this covers any repo that calls it. Inputs: `project-url` (required). Secrets: `ADD_TO_PROJECT_PAT` (required; classic PAT with the `project` scope, plus `repo` when the calling repository is private, because `GITHUB_TOKEN` cannot write to a user-level project). Caller permissions: `contents: read`. The caller template triggers on `issues: types: [opened]`. See file header for the authoritative input list.
+
 ## `self-lint.yaml`
 
 Not reusable by other repos. Runs `lint-workflows.yaml` and the workflow regression tests against this repository on pull requests that touch `.github/**`, `tests/**`, `templates/config/.gitignore*` or `templates/config/.pre-commit-config.yaml`. `self-release.yaml` calls it on every push to `main`.
@@ -77,6 +81,10 @@ Not reusable by other repos. Calls `gitleaks.yaml` on every pull request to this
 ## `self-commit-lint.yaml`
 
 Not reusable by other repos. Runs `commit-lint.yaml` on every pull request to this repository, so PR titles and commit subjects stay readable by `self-release.yaml`.
+
+## `self-add-to-project.yaml`
+
+Not reusable by other repos. Calls `add-to-project.yaml` for each new issue in this repository, adding it to the cross-repo Tooling project.
 
 ## `self-release.yaml`
 

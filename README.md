@@ -116,6 +116,7 @@ Use a long-lived `staging` branch to batch feature PRs, so the expensive checks 
 | `commit-lint.yaml` | yes | yes | yes | yes | yes |
 | `gitleaks.yaml` | yes | yes | yes | yes | yes |
 | `lint-workflows.yaml` | yes | yes | yes | yes | yes |
+| `add-to-project.yaml` (baseline v2.3.0 or newer) | optional | optional | optional | optional | optional |
 | `r-cmd-check.yaml` | yes | | | | |
 | `test-coverage.yaml` | optional | | | | |
 | `build-package.yaml` | yes | | | | |
@@ -129,7 +130,7 @@ Use a long-lived `staging` branch to batch feature PRs, so the expensive checks 
 | `quarto-pages.yaml` | | | yes | | |
 | `examples/shinylive-pages.yaml` | | | | copy and edit | |
 
-Node and Rust builds stay project-specific. baseline ships no Node or Rust workflows or composites; those repos take only the hygiene callers.
+Node and Rust builds stay project-specific. baseline ships no Node or Rust workflows or composites; those repos take only the hygiene callers, plus `add-to-project` if they want it.
 
 Config files:
 
@@ -151,6 +152,7 @@ Config files:
 | `DISPATCH_PAT` | `notify-downstream.yaml` | when notifying | Fine-grained PAT with Repository permissions > Contents: Read and write on only the downstream repositories it notifies (the dispatches API requires it). Store it on the upstream repo, ideally as an environment secret restricted to `main`. |
 | `BUMP_PAT` | `track-release-pr.yaml` | when tracking | Fine-grained PAT on the one downstream repository: Contents and Pull requests read/write, plus Workflows read/write for `workflow-sha` (it edits files under `.github/`). Add read access to the upstream if it is private. Map an existing secret in the caller if you prefer. |
 | `GITLEAKS_LICENSE` | `gitleaks.yaml` | no | Only needed if the repo moves to an organization account. Personal-account repos do not need it. |
+| `ADD_TO_PROJECT_PAT` | `add-to-project.yaml` | when adding to a project | Classic PAT with the `project` scope, plus `repo` when the calling repository is private. A fine-grained PAT cannot write to a user-level project. |
 
 No other workflow takes secrets. Repository variable `DOWNSTREAM_REPOS` (whitespace-separated `owner/repo`) lists the repos baseline's own release notifies. API keys such as `CTX_API_KEY` stay in project-specific live-API workflows and must never be passed to baseline callees.
 

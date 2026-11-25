@@ -1,0 +1,23 @@
+# Caller: add each new issue in this repo to a GitHub Project.
+# Copy to .github/workflows/add-to-project.yaml. Permissions: contents: read.
+# Secret ADD_TO_PROJECT_PAT: classic PAT with the project scope, plus repo when this
+# repository is private.
+name: Add to project
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  add:
+    name: Add to project
+    # Needs baseline v2.3.0 or newer: the workflow does not exist at an older pin.
+    uses: seanthimons/baseline/.github/workflows/add-to-project.yaml@ad7b0409c5ae8d28f293826fef0819bd74c7b9e0 # v2.2.0
+    with:
+      # Set this to your project.
+      project-url: https://github.com/users/<owner>/projects/<number>
+    secrets:
+      ADD_TO_PROJECT_PAT: ${{ secrets.ADD_TO_PROJECT_PAT }}
