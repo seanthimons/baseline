@@ -76,9 +76,9 @@ The composite actions are for project-specific workflows in caller repos (for ex
 2. Copy each caller stub from `templates/workflows/` on `main` into `<repo>/.github/workflows/`. Keep the `.yaml` extension. Do not copy from inside a release tag: a release is tagged before its stubs are repinned, so the stubs in the `v2.0.0` tag still pin `v1.5.0`. Check the pin comment of what you copied.
 3. Pin the `uses:` ref to a full commit SHA of a baseline release tag, with the tag as a trailing comment:
    ```yaml
-   uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@<40-char-sha> # v2.2.0
+   uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@<40-char-sha> # v2.3.0
    ```
-   Get the SHA with `git ls-remote https://github.com/seanthimons/baseline refs/tags/v2.2.0`.
+   Get the SHA with `git ls-remote https://github.com/seanthimons/baseline refs/tags/v2.3.0`.
 4. Edit the caller's triggers, branch filters, and inputs. Pass secrets explicitly by name. Do not use `secrets: inherit`.
 5. Grant permissions on the calling job only. A callee cannot escalate beyond what the caller grants. Keep the caller's top-level `permissions: contents: read`.
 6. Copy the config files you need from `templates/config/` (`.gitignore` there is the root-local pattern: ignores every root dot-file, dot-directory and `*.md` without naming agent files, with the usual tracked ones such as `.github/`, `README.md` and `NEWS.md` already opted in; opt anything else in with `!/<name>`; it also ignores common secret files at any depth, such as `.env.*` (except `.env.example`), `credentials.json`, `mcp.json`, `*.pem` and `id_rsa*`, so a nested copy is caught too; it also carries the GitHub R defaults, and Python repos append `.gitignore.python`) to the repo root (`dependabot.yml` and `pull_request_template.md` go in `.github/`).
