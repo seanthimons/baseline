@@ -220,6 +220,11 @@ For a renv project that needs portable setup without capability packs, run
 GitHub). Run `Rscript --vanilla setup.R` on each new machine (Windows, macOS, or
 Linux). boosterpak owns the file's behavior; baseline relies only on the
 contract above.
+To refresh a project's generated files, run `boosterpak::upgrade_project()`
+(boosterpak 0.13.0 or newer, installed from GitHub). In a project without packs,
+it moves the pin in `setup.R` to the installed boosterpak commit and repairs the
+managed `.Rprofile` block. It never moves the pin to an older boosterpak than the
+one that generated the file.
 Keep `renv/activate.R` and `renv.lock` committed.
 
 After deliberate dependency changes, use `boosterpak::snapshot_project()` to
