@@ -445,7 +445,7 @@ from `templates/workflows/` and pin by SHA. Details:
 
 | Project type | Adopt callers |
 |---|---|
-| Every repo | `gitleaks`, `commit-lint`, `lint-workflows` |
+| Every repo | `gitleaks`, `commit-lint`, `lint-workflows`; opt in: `add-to-project` |
 | R package | + `r-cmd-check`; opt in: `test-coverage`, `pkgdown`, `build-package`, `release-r-package`, `rolling-prerelease`, `docs-check` |
 | R app with renv | + `r-renv-tests` (shinylive apps: copy `examples/shinylive-pages.yaml`) |
 | Quarto site | + `quarto-pages` |
